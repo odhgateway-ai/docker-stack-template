@@ -129,7 +129,7 @@ cp .env.example .env
 
 # 3. Generate bcrypt hash for Caddy auth
 docker run --rm caddy:alpine caddy hash-password --plaintext "YourPassword"
-# → Copy output into CADDY_AUTH_HASH (escape $ as $$)
+# → Copy output into CADDY_AUTH_HASH exactly as-is, wrapped in single quotes
 
 # 4. Set up Cloudflare Tunnel
 #    a. Create tunnel: https://one.dash.cloudflare.com → Zero Trust → Networks → Tunnels
@@ -161,7 +161,7 @@ npm run logs
 | `DOMAIN` | ✅ | — | Root domain, e.g. `example.com` |
 | `CADDY_EMAIL` | ✅ | — | Email for Let's Encrypt SSL |
 | `CADDY_AUTH_USER` | ✅ | `admin` | Basic auth username |
-| `CADDY_AUTH_HASH` | ✅ | — | Bcrypt hash (escape `$` as `$$`) |
+| `CADDY_AUTH_HASH` | ✅ | — | Bcrypt hash, stored exactly as generated and wrapped in single quotes in `.env` |
 
 ### Application vars
 
@@ -349,7 +349,7 @@ flowchart TD
 | Error | Cause | Fix |
 |-------|-------|-----|
 | `ERROR: .env not found` | Missing `.env` | `cp .env.example .env` |
-| `invalid bcrypt hash` | Wrong `CADDY_AUTH_HASH` format | Re-generate, escape `$` as `$$` |
+| `invalid bcrypt hash` | Wrong `CADDY_AUTH_HASH` format | Re-generate and store it exactly as generated inside single quotes |
 | `tunnel not connected` | Bad `cloudflared-credentials.json` | Re-download from CF dashboard |
 | Container in `Restarting` | App crash on startup | Check `npm run logs:app` |
 | `profile not found` | Old Docker Compose version | Upgrade to Compose v2+ |

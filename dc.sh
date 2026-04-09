@@ -13,12 +13,57 @@
 # ================================================================
 set -euo pipefail
 
+trim() {
+  local s="$1"
+  s="${s#"${s%%[![:space:]]*}"}"
+  s="${s%"${s##*[![:space:]]}"}"
+  printf '%s' "$s"
+}
+
+expand_env_refs() {
+  local value="$1"
+  local ref replacement
+  while [[ "$value" =~ \$\{([A-Za-z_][A-Za-z0-9_]*)\} ]]; do
+    ref="${BASH_REMATCH[1]}"
+    replacement="${!ref-}"
+    value="${value//\$\{$ref\}/$replacement}"
+  done
+  printf '%s' "$value"
+}
+
+load_env_file() {
+  local env_file="${1:-.env}"
+  local line key value
+
+  [ -f "$env_file" ] || return 0
+
+  while IFS= read -r line || [ -n "$line" ]; do
+    line="${line%$'\r'}"
+    [ -z "$(trim "$line")" ] && continue
+    [[ "$line" =~ ^[[:space:]]*# ]] && continue
+    [[ "$line" != *=* ]] && continue
+
+    key="$(trim "${line%%=*}")"
+    value="$(trim "${line#*=}")"
+
+    if [ "${#value}" -ge 2 ]; then
+      if [[ "$value" == \"*\" && "$value" == *\" ]]; then
+        value="${value:1:${#value}-2}"
+      elif [[ "$value" == \'*\' && "$value" == *\' ]]; then
+        value="${value:1:${#value}-2}"
+      fi
+    fi
+
+    # Backward-compatible with legacy .env entries that escaped "$" as "$$".
+    value="${value//\$\$/\$}"
+    value="$(expand_env_refs "$value")"
+    export "$key=$value"
+  done < "$env_file"
+}
+
 # ── Load .env ─────────────────────────────────────────────────────
 if [ -f .env ]; then
-  set -a
-  # shellcheck disable=SC1091
-  source .env
-  set +a
+  load_env_file .env
 else
   echo "⚠️  .env not found — using defaults. Run: cp .env.example .env" >&2
 fi
@@ -78,6 +123,7 @@ if [ "${DC_VERBOSE:-0}" = "1" ]; then
   echo "  PROJECT   : ${PROJECT_NAME:-?}"
   echo "  DOMAIN    : ${DOMAIN:-?}"
   echo "  PROFILES  : ${PROFILE_ARGS[*]:-<none>}"
+  echo "  FILES     : ${FILES[*]}"
   echo "─────────────────────────────────────────────────"
 fi
 

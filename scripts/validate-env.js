@@ -92,21 +92,13 @@ check('CADDY_AUTH_HASH', {
   validate: v => {
     const h = v.replace(/\$\$/g, '$');
     if (!h.startsWith('$2a$') && !h.startsWith('$2b$')) {
-      return 'Should start with $2a$ or $2b$ (bcrypt format). Check escaping in .env (use $$ not $).';
+      return 'Should start with $2a$ or $2b$ (bcrypt format). In .env, store it exactly as generated, preferably wrapped in single quotes.';
     }
     return null;
   },
 });
 
 // ── Application vars ──────────────────────────────────────────────
-check('APP_IMAGE', {
-  desc: 'Docker image, e.g. gitea/gitea:1.21 or node:20-alpine',
-  validate: v => {
-    if (v === 'node:20-alpine') warnings.push('APP_IMAGE is still the default placeholder. Set your real image.');
-    return null;
-  },
-});
-
 check('APP_PORT', {
   desc: 'Port app listens on inside container',
   validate: v => {
@@ -115,6 +107,23 @@ check('APP_PORT', {
     return null;
   },
 });
+
+check('APP_HOST_PORT', {
+  required: false,
+  desc: 'Localhost port published for direct browser access',
+  validate: v => {
+    const n = Number(v);
+    if (!Number.isInteger(n) || n < 1 || n > 65535) return `"${v}" is not a valid port number`;
+    return null;
+  },
+});
+
+const appDockerfile = path.resolve(process.cwd(), 'services/app/Dockerfile');
+if (!fs.existsSync(appDockerfile)) {
+  errors.push('services/app/Dockerfile not found — app service build will fail');
+} else {
+  ok.push('services/app/Dockerfile  ✓  present');
+}
 
 // ── Cloudflare ─────────────────────────────────────────────────────
 check('CF_API_TOKEN', {

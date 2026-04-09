@@ -14,11 +14,6 @@
 #    ttyd.${PROJECT_NAME}.${DOMAIN}
 # ================================================================
 
-networks:
-  app_net:
-    name: ${STACK_NAME:-mystack}_net
-    external: true
-
 volumes:
   filebrowser_data:
 

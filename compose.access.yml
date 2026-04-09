@@ -10,11 +10,6 @@
 #    TS_AUTHKEY, TS_TAGS (optional, default: tag:container)
 # ================================================================
 
-networks:
-  app_net:
-    name: ${STACK_NAME:-mystack}_net
-    external: true
-
 volumes:
   tailscale_data:
 

@@ -8,6 +8,7 @@
 # ================================================================
 
 networks:
+  # Defined once here for the whole merged stack; overlay files join it by name.
   app_net:
     name: ${STACK_NAME:-mystack}_net
 
@@ -42,11 +43,11 @@ services:
 
   # ── Cloudflared: expose to Internet without opening ports ──────
   cloudflared:
-    image: cloudflare/cloudflared:2025.1.0
+    image: cloudflare/cloudflared:latest
     command: tunnel --config /etc/cloudflared/config.yml run
     volumes:
       - ./cloudflared/config.yml:/etc/cloudflared/config.yml:ro
-      - ./cloudflared-credentials.json:/etc/cloudflared/credentials.json:ro
+      - ./cloudflared/credentials.json:/etc/cloudflared/credentials.json:ro
     networks: [app_net]
     restart: unless-stopped
     depends_on:
