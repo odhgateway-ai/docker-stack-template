@@ -42,6 +42,22 @@ const errors   = [];
 const warnings = [];
 const ok       = [];
 
+function resolveRefs(value, source = env) {
+  let out = value;
+  let changed = true;
+
+  while (changed) {
+    changed = false;
+    out = out.replace(/\$\{([A-Za-z_][A-Za-z0-9_]*)\}/g, (_, key) => {
+      if (!(key in source)) return `\${${key}}`;
+      changed = true;
+      return source[key];
+    });
+  }
+
+  return out;
+}
+
 // ── Helper ───────────────────────────────────────────────────────
 function check(key, { required = true, desc = '', validate } = {}) {
   const val = env[key];
@@ -136,11 +152,16 @@ check('CF_ZONE_ID', {
 });
 
 // Check credentials file presence
-const credFile = path.resolve(process.cwd(), 'cloudflared-credentials.json');
+const credFile = path.resolve(process.cwd(), 'cloudflared/credentials.json');
+const legacyCredFile = path.resolve(process.cwd(), 'cloudflared-credentials.json');
 if (!fs.existsSync(credFile)) {
-  warnings.push('cloudflared-credentials.json not found — tunnel will fail at runtime');
+  if (fs.existsSync(legacyCredFile)) {
+    warnings.push('Found legacy cloudflared-credentials.json in repo root — move it to cloudflared/credentials.json for the current compose setup.');
+  } else {
+    warnings.push('cloudflared/credentials.json not found — tunnel will fail at runtime');
+  }
 } else {
-  ok.push('cloudflared-credentials.json  ✓  present');
+  ok.push('cloudflared/credentials.json  ✓  present');
 }
 
 const cfConfig = path.resolve(process.cwd(), 'cloudflared/config.yml');
@@ -179,10 +200,10 @@ if (env.PROJECT_NAME && env.DOMAIN) {
   const p = env.PROJECT_NAME;
   const d = env.DOMAIN;
   const preview = [
-    `  app    → http://${p}.${d}`,
-    env.ENABLE_DOZZLE      !== 'false' ? `  dozzle → http://logs.${p}.${d}`  : null,
-    env.ENABLE_FILEBROWSER !== 'false' ? `  files  → http://files.${p}.${d}` : null,
-    env.ENABLE_WEBSSH      !== 'false' ? `  ssh    → http://ttyd.${p}.${d}`  : null,
+    `  app    → http://${resolveRefs(env.CLOUDFLARED_TUNNEL_HOSTNAME_1 || `${p}.${d}`)}`,
+    env.ENABLE_DOZZLE      !== 'false' ? `  dozzle → http://${resolveRefs(env.CLOUDFLARED_TUNNEL_HOSTNAME_3 || `logs.${p}.${d}`)}`  : null,
+    env.ENABLE_FILEBROWSER !== 'false' ? `  files  → http://${resolveRefs(env.CLOUDFLARED_TUNNEL_HOSTNAME_4 || `files.${p}.${d}`)}` : null,
+    env.ENABLE_WEBSSH      !== 'false' ? `  ssh    → http://${resolveRefs(env.CLOUDFLARED_TUNNEL_HOSTNAME_2 || `ttyd.${p}.${d}`)}`  : null,
   ].filter(Boolean);
   ok.push('\n  📡 Generated subdomains:\n' + preview.join('\n'));
 }

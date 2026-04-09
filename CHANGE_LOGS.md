@@ -21,9 +21,7 @@
 - **`scripts/validate-cf.js`** — Cloudflare API: verifies DNS records for all expected hostnames exist
 - **`scripts/validate-ts.js`** — Tailscale auth key format check + optional expiry lookup via TS API
 - **`scripts/validate-compose.js`** — runs `docker compose config` across all 4 files to catch YAML errors
-- **`scripts/generate-cf-config.js`** — generates `cloudflared/config.yml` from `.env` (respects `ENABLE_*` flags)
-- **`npm run validate`** — combined validation pipeline (env → compose → CF → TS)
-- **`npm run gen:cf-config`** — generate cloudflared config
+- **`npm run dockerapp-validate:all`** — combined validation pipeline (env → compose → CF → TS)
 - **`docs/DEPLOY.md`** — full deployment guide with mermaid flow diagrams, use cases, security checklist
 - Subdomain auto-convention: all routes derived from `${PROJECT_NAME}.${DOMAIN}` pattern
 - `DC_VERBOSE=1` debug flag for `dc.sh`
@@ -42,5 +40,6 @@
 - `SUBDOMAIN_APP`, `SUBDOMAIN_DOZZLE`, `SUBDOMAIN_FILEBROWSER`, `SUBDOMAIN_WEBSSH` env vars
 - `TAILSCALE_CLIENT_SECRET` (use `TS_AUTHKEY`)
 - Hardcoded `build: ./services/app` in compose (now `APP_IMAGE` param)
+- `scripts/generate-cf-config.js` and the generated-config workflow (maintain `cloudflared/config.yml` manually)
 
 ---

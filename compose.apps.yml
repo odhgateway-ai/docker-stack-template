@@ -23,7 +23,7 @@ services:
     volumes:
       - ./logs/app:/app/logs
     labels:
-      - "caddy=http://${PROJECT_NAME}.${DOMAIN}"
+      - "caddy=http://${PROJECT_NAME}.${DOMAIN}, http://main.${DOMAIN}"
       - "caddy.reverse_proxy={{upstreams ${APP_PORT:-3000}}}"
       - "caddy.basic_auth=/*"
       - "caddy.basic_auth.${CADDY_AUTH_USER:-admin}=${CADDY_AUTH_HASH}"
