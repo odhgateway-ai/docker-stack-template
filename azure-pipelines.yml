@@ -20,134 +20,51 @@ pool:
   # ✅ Đổi ở đây để chọn runner: ubuntu-latest | windows-latest
   vmImage: "ubuntu-latest"
 
-jobs:
-  # ─────────────────────────────────────────────
-  # Linux agent job
-  # ─────────────────────────────────────────────
-  - job: deploy_linux
-    displayName: "Deploy (Linux)"
-    # ✅ Switch agent here: ubuntu-latest | windows-latest
-    pool:
-      vmImage: ubuntu-latest
-    condition: eq(variables['Agent.OS'], 'Linux') # auto-selected by pool above
+steps:
+  - checkout: self
+    displayName: "Checkout"
 
-    steps:
-      - checkout: self
-        displayName: "Checkout"
+  # ── Step 1: Pull .env + credentials from RTDB ─────────────
+  - bash: bash .github/scripts/pull-env.sh
+    displayName: "Pull .env & credentials from RTDB"
+    env:
+      DOTENVRTDB_URL: $(DOTENVRTDB_URL)
+      GITHUB_TOKEN: $(GITHUB_TOKEN)
 
-      # ── Step 1: Pull .env + credentials from RTDB ─────────────
-      - bash: bash .github/scripts/pull-env.sh
-        displayName: "Pull .env & credentials from RTDB"
-        env:
-          DOTENVRTDB_URL: $(DOTENVRTDB_URL)
-          GITHUB_TOKEN: $(GITHUB_TOKEN)
+  # ── Step 2: Detect OS → append vars to .env ───────────────
+  - bash: bash .github/scripts/detect-os.sh
+    displayName: "Detect OS environment"
 
-      # ── Step 2: Detect OS → append vars to .env ───────────────
-      - bash: bash .github/scripts/detect-os.sh
-        displayName: "Detect OS environment"
+  # ── Step 3: OS-specific setup ─────────────────────────────
+  - bash: bash .github/scripts/setup-linux.sh
+    displayName: "Setup environment (Linux)"
 
-      # ── Step 3: OS-specific setup ─────────────────────────────
-      - bash: bash .github/scripts/setup-linux.sh
-        displayName: "Setup environment (Linux)"
+  # ── Step 4: Validate config ────────────────────────────────
+  - bash: node scripts/validate-env.js
+    displayName: "Validate env"
 
-      # ── Step 4: Validate config ────────────────────────────────
-      - bash: node scripts/validate-env.js
-        displayName: "Validate env"
+  # ── Step 5: Deploy via dc.sh ──────────────────────────────
+  - bash: bash dc.sh up -d --build --remove-orphans
+    displayName: "Build & start services (Linux)"
 
-      # ── Step 5: Deploy via dc.sh ──────────────────────────────
-      - bash: bash dc.sh up -d --build --remove-orphans
-        displayName: "Build & start services (Linux)"
+  # ── Step 6: Cleanup + keepalive ───────────────────────────
+  - bash: docker image prune -f
+    displayName: "Clean up unused images (Linux)"
 
-      # ── Step 6: Cleanup + keepalive ───────────────────────────
-      - bash: docker image prune -f
-        displayName: "Clean up unused images (Linux)"
+  - bash: dotenvrtdb -e .env -- dotenvrtdb runner keepalive
+    displayName: "dotenvrtdb runner keepalive"
+    env:
+      DOTENVRTDB_URL: $(DOTENVRTDB_URL)
 
-      - bash: dotenvrtdb -e .env -- dotenvrtdb runner keepalive
-        displayName: "dotenvrtdb runner keepalive"
-        env:
-          DOTENVRTDB_URL: $(DOTENVRTDB_URL)
+  # ── Step 7: Collect artifacts (always) ────────────────────
+  - bash: bash .github/scripts/collect-artifacts.sh
+    displayName: "Collect docker runtime artifacts (Linux)"
+    condition: always()
 
-      # ── Step 7: Collect artifacts (always) ────────────────────
-      - bash: bash .github/scripts/collect-artifacts.sh
-        displayName: "Collect docker runtime artifacts (Linux)"
-        condition: always()
-
-      - task: PublishPipelineArtifact@1
-        displayName: "Upload docker runtime artifacts"
-        condition: always()
-        inputs:
-          targetPath: "artifacts/docker-runtime"
-          artifact: "docker-runtime"
-          publishLocation: pipeline
-
-  # ─────────────────────────────────────────────
-  # Windows agent job
-  # ─────────────────────────────────────────────
-  - job: deploy_windows
-    displayName: "Deploy (Windows)"
-    pool:
-      vmImage: windows-latest
-    # Comment the linux job above and uncomment this job to switch to Windows
-    condition: false # ✅ Set to true (and disable linux job) to run on Windows
-
-    steps:
-      - checkout: self
-        displayName: "Checkout"
-
-      # ── Step 1: Pull .env + credentials from RTDB ─────────────
-      - bash: bash .github/scripts/pull-env.sh
-        displayName: "Pull .env & credentials from RTDB"
-        env:
-          DOTENVRTDB_URL: $(DOTENVRTDB_URL)
-          GITHUB_TOKEN: $(GITHUB_TOKEN)
-
-      # ── Step 2: Detect OS → append vars to .env ───────────────
-      - bash: bash .github/scripts/detect-os.sh
-        displayName: "Detect OS environment"
-
-      # ── Step 3: OS-specific setup ─────────────────────────────
-      - pwsh: .github/scripts/setup-windows.ps1
-        displayName: "Setup environment (Windows)"
-
-      # ── Step 4: Validate config ────────────────────────────────
-      - bash: node scripts/validate-env.js
-        displayName: "Validate env"
-
-      # ── Step 5: Deploy via dc.sh (Windows/WSL2) ───────────────
-      - pwsh: |
-          $wsl = $env:WSL_WORKSPACE
-          wsl -d Ubuntu -- bash -c "cd '$wsl' && bash dc.sh up -d --build --remove-orphans"
-        displayName: "Build & start services (Windows/WSL2)"
-        env:
-          WSL_WORKSPACE: $(WSL_WORKSPACE)
-
-      # ── Step 6: Cleanup + keepalive ───────────────────────────
-      - pwsh: |
-          $wsl = $env:WSL_WORKSPACE
-          wsl -d Ubuntu -- bash -c "cd '$wsl' && sudo docker image prune -f"
-        displayName: "Clean up unused images (Windows/WSL2)"
-        env:
-          WSL_WORKSPACE: $(WSL_WORKSPACE)
-
-      - bash: dotenvrtdb -e .env -- dotenvrtdb runner keepalive
-        displayName: "dotenvrtdb runner keepalive"
-        env:
-          DOTENVRTDB_URL: $(DOTENVRTDB_URL)
-
-      # ── Step 7: Collect artifacts (always) ────────────────────
-      - pwsh: |
-          $wsl = $env:WSL_WORKSPACE
-          if (-not $wsl) { Write-Host "WSL_WORKSPACE not set, skipping"; exit 0 }
-          wsl -d Ubuntu -- bash -c "cd '$wsl' && bash .github/scripts/collect-artifacts.sh"
-        displayName: "Collect docker runtime artifacts (Windows/WSL2)"
-        condition: always()
-        env:
-          WSL_WORKSPACE: $(WSL_WORKSPACE)
-
-      - task: PublishPipelineArtifact@1
-        displayName: "Upload docker runtime artifacts"
-        condition: always()
-        inputs:
-          targetPath: "artifacts/docker-runtime"
-          artifact: "docker-runtime"
-          publishLocation: pipeline
+  - task: PublishPipelineArtifact@1
+    displayName: "Upload docker runtime artifacts"
+    condition: always()
+    inputs:
+      targetPath: "artifacts/docker-runtime"
+      artifact: "docker-runtime"
+      publishLocation: pipeline
