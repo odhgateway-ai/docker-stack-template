@@ -31,7 +31,7 @@ services:
       CADDY_INGRESS_NETWORKS: ${STACK_NAME:-mystack}_net
     labels:
       caddy.email: "${CADDY_EMAIL}"
-      caddy.auto_https: "off"
+      caddy.auto_https: "disable_redirects"
     networks: [app_net]
     restart: unless-stopped
     healthcheck:

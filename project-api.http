@@ -12,6 +12,7 @@
 @app_host_port = {{$dotenv APP_HOST_PORT}}
 @health_path = {{$dotenv HEALTH_PATH}}
 @caddy_auth_user = {{$dotenv CADDY_AUTH_USER}}
+@tailscale_https_host = {{$dotenv TAILSCALE_HTTPS_HOST}}
 
 @app_local = http://localhost:{{app_host_port}}
 @caddy_local = http://localhost
@@ -19,6 +20,7 @@
 @host_project = {{project_name}}.{{domain}}
 @public_main = https://{{host_main}}
 @public_project = https://{{host_project}}
+@tailscale_https = https://{{tailscale_https_host}}
 @basic_auth = YWRtaW46QWRtaW5AMTIzQWRtaW5AMTIz
 
 ###
@@ -67,5 +69,20 @@ Authorization: Basic {{basic_auth}}
 ###
 # Public project hostname alias
 GET {{public_project}}/
+Accept: application/json
+Authorization: Basic {{basic_auth}}
+
+###
+# Internal HTTPS through Caddy for tailnet / trusted LAN use.
+# This requires:
+# 1. {{tailscale_https_host}} resolves to this machine inside your tailnet or LAN
+# 2. clients trust Caddy's local root CA
+#    export from: docker exec dockerstack-app-caddy-1 cat /data/caddy/pki/authorities/local/root.crt
+GET {{tailscale_https}}/
+Accept: application/json
+Authorization: Basic {{basic_auth}}
+
+###
+GET {{tailscale_https}}{{health_path}}
 Accept: application/json
 Authorization: Basic {{basic_auth}}

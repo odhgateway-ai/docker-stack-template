@@ -59,7 +59,7 @@ function resolveRefs(value, source = env) {
 }
 
 // ── Helper ───────────────────────────────────────────────────────
-function check(key, { required = true, desc = '', validate } = {}) {
+function check(key, { required = true, desc = '', validate, display } = {}) {
   const val = env[key];
   if (!val) {
     if (required) errors.push(`Missing ${key}${desc ? '  →  ' + desc : ''}`);
@@ -72,7 +72,8 @@ function check(key, { required = true, desc = '', validate } = {}) {
   }
   // Mask secrets
   const secret = ['TOKEN','HASH','KEY','SECRET','PASSWORD'].some(k => key.includes(k));
-  ok.push(`${key} = ${secret ? val.slice(0,6) + '***' : val}`);
+  const shown = display ? display(val) : val;
+  ok.push(`${key} = ${secret ? shown.slice(0,6) + '***' : shown}`);
 }
 
 // ── Required core vars ────────────────────────────────────────────
@@ -134,6 +135,17 @@ check('APP_HOST_PORT', {
   },
 });
 
+check('TAILSCALE_HTTPS_HOST', {
+  required: false,
+  desc: 'Internal HTTPS hostname for Caddy on Tailscale / trusted LAN',
+  validate: v => {
+    if (v.startsWith('http://') || v.startsWith('https://')) return 'Should be a hostname only, without http:// or https://';
+    if (/[\/\s]/.test(v)) return 'Should not contain spaces or slashes';
+    return null;
+  },
+  display: v => resolveRefs(v),
+});
+
 const appDockerfile = path.resolve(process.cwd(), 'services/app/Dockerfile');
 if (!fs.existsSync(appDockerfile)) {
   errors.push('services/app/Dockerfile not found — app service build will fail');
@@ -182,6 +194,7 @@ if (env.ENABLE_TAILSCALE === 'true') {
       return null;
     },
   });
+  ok.push(`TAILSCALE_HTTPS_HOST = ${resolveRefs(env.TAILSCALE_HTTPS_HOST || env.STACK_NAME || 'mystack')}`);
 } else {
   ok.push('ENABLE_TAILSCALE = false  (Tailscale skipped)');
 }
@@ -199,11 +212,13 @@ for (const flag of flags) {
 if (env.PROJECT_NAME && env.DOMAIN) {
   const p = env.PROJECT_NAME;
   const d = env.DOMAIN;
+  const tailHost = resolveRefs(env.TAILSCALE_HTTPS_HOST || env.STACK_NAME || 'mystack');
   const preview = [
     `  app    → http://${resolveRefs(env.CLOUDFLARED_TUNNEL_HOSTNAME_1 || `${p}.${d}`)}`,
     env.ENABLE_DOZZLE      !== 'false' ? `  dozzle → http://${resolveRefs(env.CLOUDFLARED_TUNNEL_HOSTNAME_3 || `logs.${p}.${d}`)}`  : null,
     env.ENABLE_FILEBROWSER !== 'false' ? `  files  → http://${resolveRefs(env.CLOUDFLARED_TUNNEL_HOSTNAME_4 || `files.${p}.${d}`)}` : null,
     env.ENABLE_WEBSSH      !== 'false' ? `  ssh    → http://${resolveRefs(env.CLOUDFLARED_TUNNEL_HOSTNAME_2 || `ttyd.${p}.${d}`)}`  : null,
+    env.ENABLE_TAILSCALE   === 'true'  ? `  tail   → https://${tailHost}` : null,
   ].filter(Boolean);
   ok.push('\n  📡 Generated subdomains:\n' + preview.join('\n'));
 }

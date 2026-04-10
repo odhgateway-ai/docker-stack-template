@@ -47,8 +47,8 @@ flowchart TD
         SSH
     end
 
-    TEAM([👥 Internal Team]) -->|Tailscale VPN| TS[tailscale\ncontainer]
-    TS --> CADDY
+    TEAM([👥 Internal Team]) -->|Tailscale VPN + HTTPS| TS[Tailscale]
+    TS -->|https://TAILSCALE_HTTPS_HOST| CADDY
 ```
 
 ### Subdomain Convention (auto-generated)
@@ -170,6 +170,7 @@ npm run dockerapp-exec:logs
 |----------|----------|---------|-------------|
 | `APP_IMAGE` | ✅ | `node:20-alpine` | Docker image to deploy |
 | `APP_PORT` | ✅ | `3000` | Container-internal port |
+| `APP_HOST_PORT` | ❌ | `3000` | Localhost-only port published for direct HTTP access |
 | `HEALTH_PATH` | ❌ | `/health` | Healthcheck endpoint |
 | `NODE_ENV` | ❌ | `production` | Runtime environment |
 
@@ -196,6 +197,13 @@ npm run dockerapp-exec:logs
 | `TS_AUTHKEY` | ✅ | Auth key from Tailscale admin console |
 | `TS_TAGS` | ❌ | ACL tags, default `tag:container` |
 | `TS_API_KEY` | For `validate:ts` | API key for expiry check |
+| `TAILSCALE_HTTPS_HOST` | Recommended | Hostname Caddy serves with `tls internal`; should resolve inside your tailnet or trusted LAN |
+
+For internal HTTPS via Tailscale:
+- Set `TAILSCALE_HTTPS_HOST` to a MagicDNS or split-DNS hostname that resolves to this stack. The starter default is `${STACK_NAME}.tailnet.local`.
+- Trust Caddy's local root CA from `/data/caddy/pki/authorities/local/root.crt` if clients should accept the certificate without warnings.
+- On Windows/Docker Desktop, the simplest path is usually to run Tailscale on the host so the published `443` port is reachable over the tailnet.
+- The stack keeps public tunnel origins on plain `http://...`, while the dedicated tailnet hostname is served separately over `https://...` with `tls internal`.
 
 ---
 

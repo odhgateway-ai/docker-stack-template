@@ -68,6 +68,9 @@ else
   echo "⚠️  .env not found — using defaults. Run: cp .env.example .env" >&2
 fi
 
+# Shared defaults derived from stack identity.
+export TAILSCALE_HTTPS_HOST="${TAILSCALE_HTTPS_HOST:-${STACK_NAME:-mystack}.tailnet.local}"
+
 # ── Detect OS (uname-based, not RUNNER_OS) ─────────────────────
 UNAME_S="$(uname -s)"
 UNAME_R="$(uname -r)"
