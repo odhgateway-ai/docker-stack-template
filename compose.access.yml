@@ -7,7 +7,7 @@
 #    tailscale-windows — userspace mode (Windows/WSL2 host)
 #
 #  Required env (when ENABLE_TAILSCALE=true):
-#    TS_AUTHKEY, TS_TAGS (optional, default: tag:container)
+#    TAILSCALE_AUTHKEY, TAILSCALE_TAGS (optional, default: tag:container)
 # ================================================================
 
 volumes:
@@ -20,10 +20,10 @@ services:
     image: tailscale/tailscale:stable
     hostname: ${STACK_NAME:-mystack}
     environment:
-      TS_AUTHKEY: "${TS_AUTHKEY}"
+      TS_AUTHKEY: "${TAILSCALE_AUTHKEY}"
       TS_USERSPACE: "false"
       TS_EXTRA_ARGS: >-
-        --advertise-tags=${TS_TAGS:-tag:container}
+        --advertise-tags=${TAILSCALE_TAGS:-tag:container}
         --accept-dns=true
         --accept-routes
       TS_STATE_DIR: /var/lib/tailscale
@@ -42,10 +42,10 @@ services:
     image: tailscale/tailscale:stable
     hostname: ${STACK_NAME:-mystack}
     environment:
-      TS_AUTHKEY: "${TS_AUTHKEY}"
+      TAILSCALE_AUTHKEY: "${TAILSCALE_AUTHKEY}"
       TS_USERSPACE: "true"
       TS_EXTRA_ARGS: >-
-        --advertise-tags=${TS_TAGS:-tag:container}
+        --advertise-tags=${TAILSCALE_TAGS:-tag:container}
         --accept-dns=true
       TS_STATE_DIR: /var/lib/tailscale
     volumes:

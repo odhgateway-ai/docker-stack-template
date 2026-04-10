@@ -55,12 +55,12 @@ flowchart TD
 
 All subdomains are derived from `PROJECT_NAME` + `DOMAIN` — no manual `SUBDOMAIN_*` vars needed:
 
-| Service      | URL                                    | Controlled by          |
-|-------------|----------------------------------------|------------------------|
-| App          | `${PROJECT_NAME}.${DOMAIN}`            | always on              |
-| Dozzle logs  | `logs.${PROJECT_NAME}.${DOMAIN}`       | `ENABLE_DOZZLE=true`   |
-| Filebrowser  | `files.${PROJECT_NAME}.${DOMAIN}`      | `ENABLE_FILEBROWSER=true` |
-| WebSSH       | `ttyd.${PROJECT_NAME}.${DOMAIN}`       | `ENABLE_WEBSSH=true`   |
+| Service     | URL                               | Controlled by             |
+| ----------- | --------------------------------- | ------------------------- |
+| App         | `${PROJECT_NAME}.${DOMAIN}`       | always on                 |
+| Dozzle logs | `logs.${PROJECT_NAME}.${DOMAIN}`  | `ENABLE_DOZZLE=true`      |
+| Filebrowser | `files.${PROJECT_NAME}.${DOMAIN}` | `ENABLE_FILEBROWSER=true` |
+| WebSSH      | `ttyd.${PROJECT_NAME}.${DOMAIN}`  | `ENABLE_WEBSSH=true`      |
 
 ### Profile → Feature Flag Mapping
 
@@ -155,44 +155,45 @@ npm run dockerapp-exec:logs
 
 ### Core env vars
 
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `STACK_NAME` | ✅ | `mystack` | Docker network name prefix, Tailscale hostname |
-| `PROJECT_NAME` | ✅ | — | Subdomain prefix, e.g. `gitea` → `gitea.example.com` |
-| `DOMAIN` | ✅ | — | Root domain, e.g. `example.com` |
-| `CADDY_EMAIL` | ✅ | — | Email for Let's Encrypt SSL |
-| `CADDY_AUTH_USER` | ✅ | `admin` | Basic auth username |
-| `CADDY_AUTH_HASH` | ✅ | — | Bcrypt hash, stored exactly as generated and wrapped in single quotes in `.env` |
+| Variable          | Required | Default   | Description                                                                     |
+| ----------------- | -------- | --------- | ------------------------------------------------------------------------------- |
+| `STACK_NAME`      | ✅       | `mystack` | Docker network name prefix, Tailscale hostname                                  |
+| `PROJECT_NAME`    | ✅       | —         | Subdomain prefix, e.g. `gitea` → `gitea.example.com`                            |
+| `DOMAIN`          | ✅       | —         | Root domain, e.g. `example.com`                                                 |
+| `CADDY_EMAIL`     | ✅       | —         | Email for Let's Encrypt SSL                                                     |
+| `CADDY_AUTH_USER` | ✅       | `admin`   | Basic auth username                                                             |
+| `CADDY_AUTH_HASH` | ✅       | —         | Bcrypt hash, stored exactly as generated and wrapped in single quotes in `.env` |
 
 ### Application vars
 
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `APP_IMAGE` | ✅ | `node:20-alpine` | Docker image to deploy |
-| `APP_PORT` | ✅ | `3000` | Container-internal port |
-| `APP_HOST_PORT` | ❌ | `3000` | Localhost-only port published for direct HTTP access |
-| `HEALTH_PATH` | ❌ | `/health` | Healthcheck endpoint |
-| `NODE_ENV` | ❌ | `production` | Runtime environment |
+| Variable        | Required | Default          | Description                                          |
+| --------------- | -------- | ---------------- | ---------------------------------------------------- |
+| `APP_IMAGE`     | ✅       | `node:20-alpine` | Docker image to deploy                               |
+| `APP_PORT`      | ✅       | `3000`           | Container-internal port                              |
+| `APP_HOST_PORT` | ❌       | `3000`           | Localhost-only port published for direct HTTP access |
+| `HEALTH_PATH`   | ❌       | `/health`        | Healthcheck endpoint                                 |
+| `NODE_ENV`      | ❌       | `production`     | Runtime environment                                  |
 
 ### Feature flags
 
-| Variable | Default | Effect |
-|----------|---------|--------|
-| `ENABLE_DOZZLE` | `true` | Real-time log viewer at `logs.*` |
-| `ENABLE_FILEBROWSER` | `true` | File manager at `files.*` |
-| `ENABLE_WEBSSH` | `true` | Web terminal at `ttyd.*` |
-| `ENABLE_TAILSCALE` | `false` | Internal VPN access |
+| Variable             | Default | Effect                           |
+| -------------------- | ------- | -------------------------------- |
+| `ENABLE_DOZZLE`      | `true`  | Real-time log viewer at `logs.*` |
+| `ENABLE_FILEBROWSER` | `true`  | File manager at `files.*`        |
+| `ENABLE_WEBSSH`      | `true`  | Web terminal at `ttyd.*`         |
+| `ENABLE_TAILSCALE`   | `false` | Internal VPN access              |
 
 ### Tailscale vars (only when `ENABLE_TAILSCALE=true`)
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `TS_AUTHKEY` | ✅ | Auth key from Tailscale admin console |
-| `TS_TAGS` | ❌ | ACL tags, default `tag:container` |
-| `TS_API_KEY` | For `validate:ts` | API key for expiry check |
-| `TAILSCALE_HTTPS_HOST` | Recommended | Hostname Caddy serves with `tls internal`; should resolve inside your tailnet or trusted LAN |
+| Variable               | Required          | Description                                                                                  |
+| ---------------------- | ----------------- | -------------------------------------------------------------------------------------------- |
+| `TAILSCALE_AUTHKEY`    | ✅                | Auth key from Tailscale admin console                                                        |
+| `TAILSCALE_TAGS`       | ❌                | ACL tags, default `tag:container`                                                            |
+| `TS_API_KEY`           | For `validate:ts` | API key for expiry check                                                                     |
+| `TAILSCALE_HTTPS_HOST` | Recommended       | Hostname Caddy serves with `tls internal`; should resolve inside your tailnet or trusted LAN |
 
 For internal HTTPS via Tailscale:
+
 - Set `TAILSCALE_HTTPS_HOST` to a MagicDNS or split-DNS hostname that resolves to this stack. The starter default is `${STACK_NAME}.tailnet.local`.
 - Trust Caddy's local root CA from `/data/caddy/pki/authorities/local/root.crt` if clients should accept the certificate without warnings.
 - On Windows/Docker Desktop, the simplest path is usually to run Tailscale on the host so the published `443` port is reachable over the tailnet.
@@ -233,6 +234,7 @@ ENABLE_TAILSCALE=true
 ```
 
 Result:
+
 - `grafana.example.com` → Grafana
 - `logs.grafana.example.com` → Dozzle
 - `files.grafana.example.com` → Filebrowser
@@ -321,7 +323,7 @@ Before going live:
 - [ ] WebSSH is behind Caddy basic auth
 - [ ] Admin tools (`logs.*`, `files.*`, `ttyd.*`) only accessible via VPN or Cloudflare Access
 - [ ] Image versions are pinned (not `:latest`)
-- [ ] `TS_AUTHKEY` is a short-lived reusable key with appropriate ACL tags
+- [ ] `TAILSCALE_AUTHKEY` is a short-lived reusable key with appropriate ACL tags
 
 ---
 
@@ -344,13 +346,13 @@ flowchart TD
 
 ### Common errors
 
-| Error | Cause | Fix |
-|-------|-------|-----|
-| `ERROR: .env not found` | Missing `.env` | `cp .env.example .env` |
-| `invalid bcrypt hash` | Wrong `CADDY_AUTH_HASH` format | Re-generate and store it exactly as generated inside single quotes |
-| `tunnel not connected` | Bad `cloudflared/credentials.json` | Re-download from CF dashboard |
-| Container in `Restarting` | App crash on startup | Check `npm run dockerapp-exec:logs:app` |
-| `profile not found` | Old Docker Compose version | Upgrade to Compose v2+ |
+| Error                     | Cause                              | Fix                                                                |
+| ------------------------- | ---------------------------------- | ------------------------------------------------------------------ |
+| `ERROR: .env not found`   | Missing `.env`                     | `cp .env.example .env`                                             |
+| `invalid bcrypt hash`     | Wrong `CADDY_AUTH_HASH` format     | Re-generate and store it exactly as generated inside single quotes |
+| `tunnel not connected`    | Bad `cloudflared/credentials.json` | Re-download from CF dashboard                                      |
+| Container in `Restarting` | App crash on startup               | Check `npm run dockerapp-exec:logs:app`                            |
+| `profile not found`       | Old Docker Compose version         | Upgrade to Compose v2+                                             |
 
 ---
 
@@ -374,9 +376,10 @@ services:
 ```
 
 Then add the hostname to `cloudflared/config.yml`:
+
 ```yaml
-  - hostname: api.${PROJECT_NAME}.${DOMAIN}
-    service: http://caddy:80
+- hostname: api.${PROJECT_NAME}.${DOMAIN}
+  service: http://caddy:80
 ```
 
 Then update `cloudflared/config.yml` manually to add the matching ingress rule.
