@@ -29,7 +29,7 @@ Set `PROJECT_NAME=gitea` and `DOMAIN=example.com` once. All service URLs follow 
 ```bash
 npm run dockerapp-validate:all
 ```
-Checks env vars, Cloudflare DNS records, Tailscale key format, and compose YAML — all at once.
+Checks env vars, Tailscale key format, and compose YAML — all at once.
 
 **One-command deploy**
 ```bash

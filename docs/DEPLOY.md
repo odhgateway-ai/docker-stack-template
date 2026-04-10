@@ -183,13 +183,6 @@ npm run dockerapp-exec:logs
 | `ENABLE_WEBSSH` | `true` | Web terminal at `ttyd.*` |
 | `ENABLE_TAILSCALE` | `false` | Internal VPN access |
 
-### Cloudflare vars
-
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `CF_API_TOKEN` | For `validate:cf` | API token with DNS read permission |
-| `CF_ZONE_ID` | For `validate:cf` | Your domain's zone ID |
-
 ### Tailscale vars (only when `ENABLE_TAILSCALE=true`)
 
 | Variable | Required | Description |
@@ -265,10 +258,9 @@ services:
 
 ```
 Validation:
-  npm run dockerapp-validate:all     Run all checks (env + compose + CF + TS)
+  npm run dockerapp-validate:all     Run all checks (env + compose + TS)
   npm run dockerapp-validate:env     Check required env vars + format
   npm run dockerapp-validate:compose Validate merged Docker Compose YAML
-  npm run dockerapp-validate:cf      Check Cloudflare DNS records via API
   npm run dockerapp-validate:ts      Check Tailscale auth key format + expiry
 
 Helpers:
@@ -306,7 +298,6 @@ docker-stack-template/
 ├── package.json          ← npm script runner
 ├── scripts/
 │   ├── validate-env.js   ← env completeness + format check
-│   ├── validate-cf.js    ← Cloudflare DNS API check
 │   ├── validate-ts.js    ← Tailscale auth key check
 │   ├── validate-compose.js ← docker compose config validation
 ├── cloudflared/
@@ -347,7 +338,7 @@ flowchart TD
     C3 -->|ok| C5{CF tunnel connected?}
     C5 -->|no| C6[Check cloudflared logs:\nnpm run dockerapp-exec:logs:cloudflared]
     C5 -->|yes| C7{DNS record exists?}
-    C7 -->|no| C8[npm run dockerapp-validate:cf\nAdd missing records]
+    C7 -->|no| C8[Check Cloudflare DNS dashboard\nAdd missing records]
     C7 -->|yes| FIXED[✅ Should be working]
 ```
 

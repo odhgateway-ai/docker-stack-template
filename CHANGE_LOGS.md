@@ -18,10 +18,9 @@
 - **`compose.apps.yml`** — parameterised app service (`APP_IMAGE` + `APP_PORT`)
 - **`up.sh` / `down.sh` / `logs.sh`** — one-liner shortcuts wrapping `dc.sh`
 - **`scripts/validate-env.js`** — checks required vars, format validation (bcrypt, domain, port), subdomain preview
-- **`scripts/validate-cf.js`** — Cloudflare API: verifies DNS records for all expected hostnames exist
 - **`scripts/validate-ts.js`** — Tailscale auth key format check + optional expiry lookup via TS API
 - **`scripts/validate-compose.js`** — runs `docker compose config` across all 4 files to catch YAML errors
-- **`npm run dockerapp-validate:all`** — combined validation pipeline (env → compose → CF → TS)
+- **`npm run dockerapp-validate:all`** — combined validation pipeline (env → compose → TS)
 - **`docs/DEPLOY.md`** — full deployment guide with mermaid flow diagrams, use cases, security checklist
 - Subdomain auto-convention: all routes derived from `${PROJECT_NAME}.${DOMAIN}` pattern
 - `DC_VERBOSE=1` debug flag for `dc.sh`

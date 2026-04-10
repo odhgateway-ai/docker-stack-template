@@ -154,15 +154,6 @@ if (!fs.existsSync(appDockerfile)) {
 }
 
 // ── Cloudflare ─────────────────────────────────────────────────────
-check('CF_API_TOKEN', {
-  required: false,
-  desc: 'Cloudflare API token (needed for validate:cf DNS check)',
-});
-check('CF_ZONE_ID', {
-  required: false,
-  desc: 'Cloudflare Zone ID (needed for validate:cf DNS check)',
-});
-
 // Check credentials file presence
 const credFile = path.resolve(process.cwd(), 'cloudflared/credentials.json');
 const legacyCredFile = path.resolve(process.cwd(), 'cloudflared-credentials.json');
