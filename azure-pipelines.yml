@@ -16,6 +16,10 @@ variables:
   # DOTENVRTDB_URL and GITHUB_TOKEN should be set as secret pipeline variables
   # in Azure DevOps → Pipelines → Edit → Variables
 
+pool:
+  # ✅ Đổi ở đây để chọn runner: ubuntu-latest | windows-latest
+  vmImage: "ubuntu-latest"
+
 jobs:
   # ─────────────────────────────────────────────
   # Linux agent job
