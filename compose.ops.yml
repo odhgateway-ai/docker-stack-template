@@ -21,7 +21,7 @@ services:
   # ── Dozzle: real-time container logs ──────────────────────────
   dozzle:
     profiles: [dozzle]
-    image: amir20/dozzle:v8.x
+    image: amir20/dozzle:latest
     volumes:
       - ${DOCKER_SOCK:-/var/run/docker.sock}:/var/run/docker.sock:ro
     environment:
@@ -40,8 +40,8 @@ services:
     image: filebrowser/filebrowser:v2.30.0
     command: --noauth --port 80 --root /srv --database /database/filebrowser.db
     volumes:
-      - .:/srv
-      - ./logs:/srv:ro
+      - .:/srv/workspace # browse toàn bộ project
+      - ./logs:/srv/logs:ro # hoặc nếu chỉ cần xem logs
       - filebrowser_data:/database
     labels:
       - "caddy=http://files.${PROJECT_NAME}.${DOMAIN}, http://files.${DOMAIN}"
