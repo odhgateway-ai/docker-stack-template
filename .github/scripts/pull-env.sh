@@ -9,8 +9,8 @@ npm install -g @tltdh61/dotenvrtdb
 echo "=== [pull-env] Pulling .env & credentials ==="
 mkdir -p services/webssh/.ssh
 
-dotenvrtdb -e .env --pull -eUrl="$RTDB_URL" \
-  --writefilebase64=./cloudflared-credentials.json \
+dotenvrtdb -e .env --pull -eUrl="$DOTENVRTDB_URL" \
+  --writefilebase64=cloudflared/credentials.json \
   --var=CLOUDFLARED_TUNNEL_CREDENTIALS_BASE64
 
 echo "✅ [pull-env] Done"

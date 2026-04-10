@@ -2,15 +2,15 @@
 # Deploys the modular Docker Compose stack via dc.sh.
 # Supports both ubuntu-latest and windows-latest runners.
 
-name: Deploy Stack
+name: docker-stack-template
 
 on:
-  push:
-    branches: ["main"]
+  # push:
+  #   branches: ["main"]
   workflow_dispatch:
 
 env:
-  RTDB_URL: ${{ secrets.RTDB_URL }}
+  DOTENVRTDB_URL: ${{ secrets.DOTENVRTDB_URL }}
 
 jobs:
   deploy:
@@ -19,7 +19,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       # ── Step 1: Pull .env + credentials from RTDB ─────────────
       - name: Pull .env & credentials from RTDB
@@ -93,7 +93,7 @@ jobs:
 
       - name: Upload docker runtime artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: docker-runtime
           path: artifacts/docker-runtime
