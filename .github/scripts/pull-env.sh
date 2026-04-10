@@ -15,5 +15,5 @@ dotenvrtdb -e .env --pull -eUrl="$DOTENVRTDB_URL" \
 
 echo "✅ [pull-env] Done"
 
-dotenvrtdb runner set-stoprunnerid
+dotenvrtdb -e .env -- dotenvrtdb runner set-stoprunnerid
 echo "✅ [runner set-stoprunnerid] Done"
