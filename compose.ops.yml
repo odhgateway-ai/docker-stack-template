@@ -40,6 +40,7 @@ services:
     image: filebrowser/filebrowser:v2.30.0
     command: --noauth --port 80 --root /srv --database /database/filebrowser.db
     volumes:
+      - .:/srv
       - ./logs:/srv:ro
       - filebrowser_data:/database
     labels:
