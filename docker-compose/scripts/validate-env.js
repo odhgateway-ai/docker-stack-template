@@ -192,6 +192,7 @@ if (!fs.existsSync(cfConfig)) {
 // ── Tailscale (conditional) ───────────────────────────────────────
 if (env.ENABLE_TAILSCALE === "true") {
   check("TAILSCALE_NODE_AUTHKEY", {
+    required: false,
     desc: "Tailscale node auth key for container join",
     validate: (v) => {
       if (!v.startsWith("tskey-auth-")) return 'Should start with "tskey-auth-"';
@@ -199,6 +200,10 @@ if (env.ENABLE_TAILSCALE === "true") {
       return null;
     },
   });
+
+  if (!env.TAILSCALE_NODE_AUTHKEY) {
+    warnings.push("TAILSCALE_NODE_AUTHKEY not set — compose will fallback to TAILSCALE_AUTHKEY for node join.");
+  }
 
   check("TAILSCALE_AUTHKEY", {
     required: false,
