@@ -61,6 +61,15 @@ function resolveRefs(value, source = env) {
   return out;
 }
 
+function isValidHttpsJsonUrl(value) {
+  try {
+    const u = new URL(value);
+    return u.protocol === "https:" && u.pathname.endsWith(".json");
+  } catch {
+    return false;
+  }
+}
+
 // ── Helper ───────────────────────────────────────────────────────
 function check(key, { required = true, desc = "", validate, display } = {}) {
   const val = env[key];
@@ -202,6 +211,45 @@ if (env.ENABLE_TAILSCALE === "true") {
       return null;
     },
   });
+
+  const keepIpRaw = (env.TAILSCALE_KEEP_IP_ENABLE || "false").trim().toLowerCase();
+  if (env.TAILSCALE_KEEP_IP_ENABLE && keepIpRaw !== "true" && keepIpRaw !== "false") {
+    errors.push('TAILSCALE_KEEP_IP_ENABLE must be exactly "true" or "false"');
+  }
+
+  if (keepIpRaw === "true") {
+    check("TAILSCALE_KEEP_IP_FIREBASE_URL", {
+      desc: "Firebase Realtime DB .json URL used to backup tailscaled.state",
+      validate: (v) => (isValidHttpsJsonUrl(v) ? null : "Must be https URL ending with .json"),
+      display: (v) => {
+        try {
+          const u = new URL(v);
+          const redacted = u.search ? "?***" : "";
+          return `${u.origin}${u.pathname}${redacted}`;
+        } catch {
+          return "<invalid-url>";
+        }
+      },
+    });
+
+    check("TAILSCALE_KEEP_IP_INTERVAL_SEC", {
+      required: false,
+      desc: "Backup interval in seconds",
+      validate: (v) => {
+        const n = Number(v);
+        if (!Number.isInteger(n) || n < 5) return "Must be an integer >= 5";
+        return null;
+      },
+    });
+
+    if (!env.TAILSCALE_CLIENDID && !env.TAILSCALE_CLIENTID) {
+      warnings.push("TAILSCALE_KEEP_IP_ENABLE=true but TAILSCALE_CLIENDID/TAILSCALE_CLIENTID is missing; hostname cleanup may be skipped.");
+    }
+    if (env.TAILSCALE_AUTHKEY && !env.TAILSCALE_AUTHKEY.startsWith("tskey-client-")) {
+      warnings.push("TAILSCALE_KEEP_IP_ENABLE=true expects OAuth secret format tskey-client-... for hostname cleanup API.");
+    }
+  }
+
   ok.push(`TAILSCALE_HTTPS_HOST = ${resolveRefs(env.TAILSCALE_HTTPS_HOST || env.STACK_NAME || "mystack")}`);
 } else {
   ok.push("ENABLE_TAILSCALE = false  (Tailscale skipped)");
