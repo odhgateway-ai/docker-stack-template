@@ -4,6 +4,7 @@
 //  Ensures tags from .env exist in Tailscale ACL tagOwners (merge-only),
 //  optionally mirrors tagOwners to a local ACL JSON/HuJSON file, and
 //  updates TAILSCALE_TAILNET_DOMAIN in .env from API-derived data,
+//  renders tailscale/serve.json from env-derived values,
 //  and enables HTTPS in Tailnet settings when not already enabled.
 //
 //  Usage:
@@ -31,6 +32,8 @@
 //    TAILSCALE_TS_TAILNET      - Tailnet identifier for API calls (default: -)
 //    TAILSCALE_TAG_OWNERS      - Owners for newly created tags (default: autogroup:admin)
 //    TAILSCALE_ACL_JSON_PATH   - Local ACL JSON/HuJSON file to merge tags into
+//    TAILSCALE_SERVE_JSON_PATH - Local serve config path (default: ./tailscale/serve.json)
+//    TAILSCALE_SERVE_PROXY     - Local upstream URL (default: http://127.0.0.1:80)
 // ================================================================
 "use strict";
 
@@ -467,6 +470,39 @@ function printList(header, values) {
   console.log();
 }
 
+function isLikelyHttpUrl(value) {
+  if (!value || typeof value !== "string") return false;
+  try {
+    const u = new URL(value);
+    if (u.protocol !== "http:" && u.protocol !== "https:") return false;
+    if (!u.hostname) return false;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function renderServeConfigText(hostname, proxyUrl, eol = "\n") {
+  const body = {
+    TCP: {
+      443: {
+        HTTPS: true,
+      },
+    },
+    Web: {
+      [`${hostname}:443`]: {
+        Handlers: {
+          "/": {
+            Proxy: proxyUrl,
+          },
+        },
+      },
+    },
+  };
+
+  return `${JSON.stringify(body, null, 2)}${eol}`;
+}
+
 async function main() {
   const args = process.argv.slice(2);
   const removeHostnameMode = args.includes("--remove-hostname");
@@ -515,6 +551,8 @@ async function main() {
   const existingTailnetDomainRaw = inputValue("TAILSCALE_TAILNET_DOMAIN");
   const existingTailnetDomain = normalizeTailnetDomain(existingTailnetDomainRaw);
   const aclFilePathRaw = inputValue("TAILSCALE_ACL_JSON_PATH");
+  const serveFilePathRaw = (inputValue("TAILSCALE_SERVE_JSON_PATH") || "./tailscale/serve.json").trim();
+  const serveProxy = (inputValue("TAILSCALE_SERVE_PROXY") || "http://127.0.0.1:80").trim();
 
   const requiredTagsRaw = parseCsv(inputValue("TAILSCALE_TAGS"));
   const requiredTags = uniqueStable(requiredTagsRaw.filter(isTag));
@@ -552,6 +590,9 @@ async function main() {
       errors.push("Missing STACK_NAME. --remove-hostname requires STACK_NAME in process.env or .env.");
     }
   } else {
+    if (!stackName) {
+      errors.push("Missing STACK_NAME. Required to generate tailscale serve hostname.");
+    }
     if (!requiredTags.length) {
       errors.push("TAILSCALE_TAGS is empty or invalid. Provide one or more tags (example: tag:ci,tag:container).");
     }
@@ -565,6 +606,9 @@ async function main() {
 
   if (existingTailnetDomain && !isLikelyDomain(existingTailnetDomain)) {
     warnings.push(`TAILSCALE_TAILNET_DOMAIN may be invalid: ${existingTailnetDomainRaw}`);
+  }
+  if (!removeHostnameMode && !isLikelyHttpUrl(serveProxy)) {
+    errors.push(`TAILSCALE_SERVE_PROXY is invalid: ${serveProxy}`);
   }
 
   console.log(`\n🔧  Tailscale Init ${removeHostnameMode ? "(remove-hostname)" : "(merge-only)"}\n`);
@@ -931,6 +975,30 @@ async function main() {
     });
   }
 
+  const serveHostname = `${stackName}.${apiTailnetDomain}`;
+  const servePathResolved = path.resolve(process.cwd(), serveFilePathRaw);
+  let serveFileExists = fs.existsSync(servePathResolved);
+  let serveFileCurrentText = "";
+  let serveFileEol = "\n";
+
+  if (serveFileExists) {
+    try {
+      serveFileCurrentText = fs.readFileSync(servePathResolved, "utf-8");
+      serveFileEol = serveFileCurrentText.includes("\r\n") ? "\r\n" : "\n";
+    } catch (err) {
+      errors.push(`Cannot read serve config file: ${servePathResolved} (${err.message})`);
+    }
+  }
+
+  if (errors.length) {
+    printList("❌  Cannot continue:", errors);
+    if (warnings.length) printList("⚠️   Additional warnings:", warnings);
+    process.exit(1);
+  }
+
+  const serveFileExpectedText = renderServeConfigText(serveHostname, serveProxy, serveFileEol);
+  const hasServeFileUpdate = !serveFileExists || serveFileCurrentText !== serveFileExpectedText;
+
   const hasRemoteUpdate = remoteAddedTags.length > 0;
   const hasAclFileUpdate = aclFileAddedTags.length > 0;
   const hasEnvUpdate = envUpdates.length > 0;
@@ -941,7 +1009,7 @@ async function main() {
     warnings.push("TAILSCALE_TAILNET_DOMAIN was inferred, but no .env path was provided (skipping file update).");
   }
 
-  if (!hasRemoteUpdate && !hasAclFileUpdate && !hasEnvFileUpdate && !hasHttpsUpdate) {
+  if (!hasRemoteUpdate && !hasAclFileUpdate && !hasEnvFileUpdate && !hasHttpsUpdate && !hasServeFileUpdate) {
     console.log("✅  No changes needed.");
     if (!hasEnvFile && hasEnvUpdate) {
       envUpdates.forEach((u) => {
@@ -982,6 +1050,13 @@ async function main() {
     console.log("  - Tailnet HTTPS:");
     console.log(`      from: ${currentHttpsEnabled === true ? "enabled" : "disabled"}`);
     console.log("      to  : enabled");
+  }
+  if (hasServeFileUpdate) {
+    console.log(`  - Serve config file (${serveFilePathRaw}):`);
+    console.log(`      host : ${serveHostname}:443`);
+    console.log(`      proxy: ${serveProxy}`);
+    console.log(`      path : ${servePathResolved}`);
+    console.log(`      mode : ${serveFileExists ? "update" : "create"}`);
   }
   console.log();
 
@@ -1055,7 +1130,14 @@ async function main() {
     console.log("✅  Tailnet HTTPS enabled.");
   }
 
-  // 4) Update env last.
+  // 4) Render tailscale serve config from env-derived values.
+  if (hasServeFileUpdate) {
+    fs.mkdirSync(path.dirname(servePathResolved), { recursive: true });
+    fs.writeFileSync(servePathResolved, serveFileExpectedText, "utf-8");
+    console.log(`✅  Serve config ${serveFileExists ? "updated" : "created"}: ${serveFilePathRaw}`);
+  }
+
+  // 5) Update env last.
   if (hasEnvFileUpdate) {
     envUpdates.forEach((u) => {
       upsertEnvLine(envLines, envMap, u.key, u.after);
