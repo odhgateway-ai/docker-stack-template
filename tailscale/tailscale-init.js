@@ -3,7 +3,8 @@
 //  tailscale/tailscale-init.js
 //  Ensures tags from .env exist in Tailscale ACL tagOwners (merge-only),
 //  optionally mirrors tagOwners to a local ACL JSON/HuJSON file, and
-//  updates TAILSCALE_TAILNET_DOMAIN in .env from DNS search paths.
+//  updates TAILSCALE_TAILNET_DOMAIN in .env from API-derived data,
+//  and enables HTTPS in Tailnet settings when not already enabled.
 //
 //  Usage:
 //    node tailscale/tailscale-init.js .env
@@ -527,6 +528,8 @@ async function main() {
   let remoteNextPolicy = null;
   let apiTailnetDomain = "";
   let apiTailnetDomainSource = "";
+  let shouldEnableHttps = false;
+  let currentHttpsEnabled = null;
 
   try {
     const aclRes = await apiRequestJson({
@@ -635,6 +638,28 @@ async function main() {
     }
   }
 
+  // 4) Tailnet HTTPS setting (enable if currently disabled)
+  try {
+    const settingsRes = await apiRequestJson({
+      method: "GET",
+      endpointPath: `/tailnet/${encodedTailnet}/settings`,
+      accessToken,
+    });
+
+    if (settingsRes.status === 200 && settingsRes.body && typeof settingsRes.body === "object") {
+      currentHttpsEnabled = settingsRes.body.httpsEnabled === true;
+      shouldEnableHttps = !currentHttpsEnabled;
+    } else if (settingsRes.status === 401) {
+      errors.push("Unauthorized (401) when reading tailnet settings. OAuth token needs networking settings read access.");
+    } else if (settingsRes.status === 403) {
+      errors.push("Forbidden (403) when reading tailnet settings. Missing scope: networking_settings:read.");
+    } else {
+      errors.push(`Failed to read tailnet settings: HTTP ${settingsRes.status}.`);
+    }
+  } catch (err) {
+    errors.push(`Failed to read tailnet settings: ${err.message}`);
+  }
+
   if (errors.length) {
     printList("❌  API fetch failed:", errors);
     if (warnings.length) printList("⚠️   Additional warnings:", warnings);
@@ -696,8 +721,9 @@ async function main() {
   const hasRemoteUpdate = remoteAddedTags.length > 0;
   const hasAclFileUpdate = aclFileAddedTags.length > 0;
   const hasEnvUpdate = envUpdates.length > 0;
+  const hasHttpsUpdate = shouldEnableHttps;
 
-  if (!hasRemoteUpdate && !hasAclFileUpdate && !hasEnvUpdate) {
+  if (!hasRemoteUpdate && !hasAclFileUpdate && !hasEnvUpdate && !hasHttpsUpdate) {
     console.log("✅  No changes needed.");
     if (warnings.length) printList("⚠️   Warnings:", warnings);
     console.log();
@@ -724,6 +750,11 @@ async function main() {
         console.log(`      via : ${apiTailnetDomainSource}`);
       }
     });
+  }
+  if (hasHttpsUpdate) {
+    console.log("  - Tailnet HTTPS:");
+    console.log(`      from: ${currentHttpsEnabled === true ? "enabled" : "disabled"}`);
+    console.log("      to  : enabled");
   }
   console.log();
 
@@ -777,7 +808,27 @@ async function main() {
     console.log(`✅  Local ACL file updated: ${aclFilePathRaw}`);
   }
 
-  // 3) Update env last.
+  // 3) Enable HTTPS on tailnet settings when needed.
+  if (hasHttpsUpdate) {
+    const patchRes = await apiRequestJson({
+      method: "PATCH",
+      endpointPath: `/tailnet/${encodedTailnet}/settings`,
+      accessToken,
+      body: { httpsEnabled: true },
+    });
+
+    if (patchRes.status !== 200) {
+      console.error(`\n❌  Failed to enable Tailnet HTTPS (HTTP ${patchRes.status}).`);
+      if (patchRes.body && patchRes.body.message) {
+        console.error(`    ${patchRes.body.message}`);
+      }
+      console.error("    Changes applied before this step were kept.\n");
+      process.exit(1);
+    }
+    console.log("✅  Tailnet HTTPS enabled.");
+  }
+
+  // 4) Update env last.
   if (hasEnvUpdate) {
     envUpdates.forEach((u) => {
       upsertEnvLine(envLines, envMap, u.key, u.after);
