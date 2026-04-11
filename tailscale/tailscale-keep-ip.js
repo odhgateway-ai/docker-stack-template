@@ -9,12 +9,13 @@ const crypto = require("crypto");
 // ================================================================
 // tailscale/tailscale-keep-ip.js
 // Modes:
-//   prepare     - restore tailscaled.state from Firebase (base64),
-//                 then remove existing machine(s) by STACK_NAME
+//   prepare     - optionally restore tailscaled.state from Firebase (base64),
+//                 and/or remove existing machine(s) by STACK_NAME
 //   backup-loop - periodically backup tailscaled.state to Firebase
 //
 // Environment:
 //   TAILSCALE_KEEP_IP_ENABLE=true|false
+//   TAILSCALE_KEEP_IP_REMOVE_HOSTNAME_ENABLE=true|false
 //   TAILSCALE_KEEP_IP_FIREBASE_URL=<https://.../path.json?auth=...>
 //   TAILSCALE_KEEP_IP_STATE_FILE=/var/lib/tailscale/tailscaled.state
 //   TAILSCALE_KEEP_IP_INTERVAL_SEC=30
@@ -371,7 +372,11 @@ async function removeHostnameFromTailnet({ hostname, tailnet, oauthSecret, clien
 
 async function run() {
   const mode = (process.argv[2] || "prepare").trim().toLowerCase();
-  const enabled = toBool(process.env.TAILSCALE_KEEP_IP_ENABLE, false);
+  const keepIpEnabled = toBool(process.env.TAILSCALE_KEEP_IP_ENABLE, false);
+  const removeHostnameEnabled = toBool(
+    process.env.TAILSCALE_KEEP_IP_REMOVE_HOSTNAME_ENABLE,
+    keepIpEnabled,
+  );
 
   const firebaseUrl = (process.env.TAILSCALE_KEEP_IP_FIREBASE_URL || "").trim();
   const stateFilePath = (process.env.TAILSCALE_KEEP_IP_STATE_FILE || "/var/lib/tailscale/tailscaled.state").trim();
@@ -383,29 +388,47 @@ async function run() {
   const clientId = (process.env.TAILSCALE_CLIENDID || process.env.TAILSCALE_CLIENTID || "").trim();
 
   console.log(`\n🔐  Tailscale Keep IP (${mode})`);
-  console.log(`    enabled : ${enabled}`);
+  console.log(`    keep_ip_enabled           : ${keepIpEnabled}`);
+  console.log(`    remove_hostname_enabled   : ${removeHostnameEnabled}`);
   console.log(`    state   : ${stateFilePath}`);
   console.log(`    host    : ${hostname || "(missing)"}`);
   console.log(`    tailnet : ${tailnet}\n`);
 
-  if (!enabled) {
-    console.log("ℹ️  TAILSCALE_KEEP_IP_ENABLE=false, skipping.\n");
-    process.exit(0);
-  }
-
-  if (!isLikelyFirebaseUrl(firebaseUrl)) {
-    console.error("❌  TAILSCALE_KEEP_IP_FIREBASE_URL is invalid or missing (must be https URL ending with .json).");
-    process.exit(1);
-  }
-
   if (mode === "prepare") {
-    await restoreState({ firebaseUrl, stateFilePath });
-    await removeHostnameFromTailnet({ hostname, tailnet, oauthSecret, clientId });
+    if (!keepIpEnabled && !removeHostnameEnabled) {
+      console.log("ℹ️  Both keep-ip restore and remove-hostname are disabled, skipping prepare.\n");
+      process.exit(0);
+    }
+
+    if (keepIpEnabled) {
+      if (!isLikelyFirebaseUrl(firebaseUrl)) {
+        console.error("❌  TAILSCALE_KEEP_IP_FIREBASE_URL is invalid or missing (must be https URL ending with .json).");
+        process.exit(1);
+      }
+      await restoreState({ firebaseUrl, stateFilePath });
+    } else {
+      console.log("ℹ️  prepare: keep-ip restore disabled by TAILSCALE_KEEP_IP_ENABLE=false.");
+    }
+
+    if (removeHostnameEnabled) {
+      await removeHostnameFromTailnet({ hostname, tailnet, oauthSecret, clientId });
+    } else {
+      console.log("ℹ️  prepare: remove-hostname disabled by TAILSCALE_KEEP_IP_REMOVE_HOSTNAME_ENABLE=false.");
+    }
+
     console.log("\n✅  prepare complete.\n");
     process.exit(0);
   }
 
   if (mode === "backup-once") {
+    if (!keepIpEnabled) {
+      console.log("ℹ️  TAILSCALE_KEEP_IP_ENABLE=false, skipping backup-once.\n");
+      process.exit(0);
+    }
+    if (!isLikelyFirebaseUrl(firebaseUrl)) {
+      console.error("❌  TAILSCALE_KEEP_IP_FIREBASE_URL is invalid or missing (must be https URL ending with .json).");
+      process.exit(1);
+    }
     await backupState({
       firebaseUrl,
       stateFilePath,
@@ -419,6 +442,15 @@ async function run() {
   }
 
   if (mode === "backup-loop") {
+    if (!keepIpEnabled) {
+      console.log("ℹ️  TAILSCALE_KEEP_IP_ENABLE=false, skipping backup-loop.\n");
+      process.exit(0);
+    }
+    if (!isLikelyFirebaseUrl(firebaseUrl)) {
+      console.error("❌  TAILSCALE_KEEP_IP_FIREBASE_URL is invalid or missing (must be https URL ending with .json).");
+      process.exit(1);
+    }
+
     const everyMs = Math.max(5, intervalSec) * 1000;
     const lastHashRef = { value: "" };
     console.log(`ℹ️  backup-loop: interval ${Math.max(5, intervalSec)}s`);

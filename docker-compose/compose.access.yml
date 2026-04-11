@@ -10,7 +10,8 @@
 #    TAILSCALE_AUTHKEY, TAILSCALE_TAGS
 #  Optional keep-ip env:
 #    TAILSCALE_KEEP_IP_ENABLE, TAILSCALE_KEEP_IP_FIREBASE_URL,
-#    TAILSCALE_KEEP_IP_INTERVAL_SEC, TAILSCALE_CLIENDID,
+#    TAILSCALE_KEEP_IP_REMOVE_HOSTNAME_ENABLE, TAILSCALE_KEEP_IP_INTERVAL_SEC,
+#    TAILSCALE_CLIENDID,
 #    TAILSCALE_OAUTH_SECRET (or fallback TAILSCALE_AUTHKEY)
 # ================================================================
 
@@ -18,13 +19,14 @@ volumes:
   tailscale_data:
 
 services:
-  # ── Keep IP prepare (Linux profile): restore state + remove hostname ──
+  # ── Keep IP prepare (Linux profile): optional restore + optional remove hostname ──
   tailscale-keep-ip-prepare-linux:
     profiles: [tailscale-linux]
     image: node:20-alpine
     command: ["node", "/workspace/tailscale/tailscale-keep-ip.js", "prepare"]
     environment:
       TAILSCALE_KEEP_IP_ENABLE: "${TAILSCALE_KEEP_IP_ENABLE:-false}"
+      TAILSCALE_KEEP_IP_REMOVE_HOSTNAME_ENABLE: "${TAILSCALE_KEEP_IP_REMOVE_HOSTNAME_ENABLE:-}"
       TAILSCALE_KEEP_IP_FIREBASE_URL: "${TAILSCALE_KEEP_IP_FIREBASE_URL:-}"
       TAILSCALE_KEEP_IP_STATE_FILE: /var/lib/tailscale/tailscaled.state
       STACK_NAME: "${STACK_NAME:-mystack}"
@@ -40,13 +42,14 @@ services:
     networks: [app_net]
     restart: "no"
 
-  # ── Keep IP prepare (Windows profile): restore state + remove hostname ─
+  # ── Keep IP prepare (Windows profile): optional restore + optional remove hostname ─
   tailscale-keep-ip-prepare-windows:
     profiles: [tailscale-windows]
     image: node:20-alpine
     command: ["node", "/workspace/tailscale/tailscale-keep-ip.js", "prepare"]
     environment:
       TAILSCALE_KEEP_IP_ENABLE: "${TAILSCALE_KEEP_IP_ENABLE:-false}"
+      TAILSCALE_KEEP_IP_REMOVE_HOSTNAME_ENABLE: "${TAILSCALE_KEEP_IP_REMOVE_HOSTNAME_ENABLE:-}"
       TAILSCALE_KEEP_IP_FIREBASE_URL: "${TAILSCALE_KEEP_IP_FIREBASE_URL:-}"
       TAILSCALE_KEEP_IP_STATE_FILE: /var/lib/tailscale/tailscaled.state
       STACK_NAME: "${STACK_NAME:-mystack}"
