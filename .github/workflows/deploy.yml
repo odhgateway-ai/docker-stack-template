@@ -50,7 +50,7 @@ jobs:
       # ── Step 4: Validate config ────────────────────────────────
       - name: Validate env
         shell: bash
-        run: node scripts/validate-env.js
+        run: node docker-compose/scripts/validate-env.js
 
       # ── Step 5: Deploy via dc.sh ──────────────────────────────
       - name: Build & start services (Linux)

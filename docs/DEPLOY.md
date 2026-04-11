@@ -296,14 +296,13 @@ docker-stack-template/
 │       ├── dc.sh             ← compose orchestrator (reads .env flags)
 │       ├── up.sh             ← shortcut: build + start
 │       ├── down.sh           ← shortcut: stop
-│       └── logs.sh           ← shortcut: follow logs
+│       ├── logs.sh           ← shortcut: follow logs
+│       ├── validate-env.js   ← env completeness + format check
+│       ├── validate-ts.js    ← Tailscale auth key check
+│       └── validate-compose.js ← docker compose config validation
 ├── compose.apps.yml      ← your application
 ├── .env.example          ← reference config
 ├── package.json          ← npm script runner
-├── scripts/
-│   ├── validate-env.js   ← env completeness + format check
-│   ├── validate-ts.js    ← Tailscale auth key check
-│   ├── validate-compose.js ← docker compose config validation
 ├── cloudflared/
 │   ├── config.yml        ← manually maintained tunnel ingress config
 │   └── config.yml.example ← starting template

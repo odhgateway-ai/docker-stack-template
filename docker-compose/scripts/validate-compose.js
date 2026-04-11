@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // ================================================================
-//  scripts/validate-compose.js
+//  docker-compose/scripts/validate-compose.js
 //  Runs `docker compose config` across all 4 compose files to
 //  validate the merged YAML resolves without errors.
 // ================================================================

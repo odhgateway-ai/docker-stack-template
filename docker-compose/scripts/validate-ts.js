@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // ================================================================
-//  scripts/validate-ts.js
+//  docker-compose/scripts/validate-ts.js
 //  Validates Tailscale auth key format and optionally checks
 //  expiry via the Tailscale API.
 //

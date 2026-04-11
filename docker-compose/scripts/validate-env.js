@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // ================================================================
-//  scripts/validate-env.js
+//  docker-compose/scripts/validate-env.js
 //  Validates .env completeness and value sanity before deploying.
 //
 //  Exit codes:

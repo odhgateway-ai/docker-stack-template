@@ -19,9 +19,9 @@
 - **`docker-compose/compose.access.yml`** — tailscale-linux, tailscale-windows; profile-gated
 - **`compose.apps.yml`** — parameterised app service (`APP_IMAGE` + `APP_PORT`)
 - **`docker-compose/scripts/up.sh` / `docker-compose/scripts/down.sh` / `docker-compose/scripts/logs.sh`** — one-liner shortcuts wrapping `dc.sh`
-- **`scripts/validate-env.js`** — checks required vars, format validation (bcrypt, domain, port), subdomain preview
-- **`scripts/validate-ts.js`** — Tailscale auth key format check + optional expiry lookup via TS API
-- **`scripts/validate-compose.js`** — runs `docker compose config` across all 4 files to catch YAML errors
+- **`docker-compose/scripts/validate-env.js`** — checks required vars, format validation (bcrypt, domain, port), subdomain preview
+- **`docker-compose/scripts/validate-ts.js`** — Tailscale auth key format check + optional expiry lookup via TS API
+- **`docker-compose/scripts/validate-compose.js`** — runs `docker compose config` across all 4 files to catch YAML errors
 - **`npm run dockerapp-validate:all`** — combined validation pipeline (env → compose → TS)
 - **`docs/DEPLOY.md`** — full deployment guide with mermaid flow diagrams, use cases, security checklist
 - Subdomain auto-convention: all routes derived from `${PROJECT_NAME}.${DOMAIN}` pattern
