@@ -24,10 +24,8 @@ steps:
 
   # ── Step 1: Pull .env + credentials from RTDB ─────────────
   - bash: bash .github/scripts/pull-env.sh
-    # displayName: "Pull .env & credentials from RTDB"
-    # env:
-    #   DOTENVRTDB_URL: $(DOTENVRTDB_URL)
-    #   GITHUB_TOKEN: $(GITHUB_TOKEN)
+    env:
+      DOTENVRTDB_URL: $(DOTENVRTDB_URL)
 
   # ── Step 2: Detect OS → append vars to .env ───────────────
   - bash: dotenvrtdb -e .env -- bash .github/scripts/detect-os.sh
