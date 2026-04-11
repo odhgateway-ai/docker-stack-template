@@ -56,14 +56,14 @@ jobs:
       - name: Build & start services (Linux)
         if: runner.os == 'Linux'
         shell: bash
-        run: bash dc.sh up -d --build --remove-orphans
+        run: bash docker-compose/scripts/dc.sh up -d --build --remove-orphans
 
       - name: Build & start services (Windows/WSL2)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
           $wsl = $env:WSL_WORKSPACE
-          wsl -d Ubuntu -- bash -c "cd '$wsl' && bash dc.sh up -d --build --remove-orphans"
+          wsl -d Ubuntu -- bash -c "cd '$wsl' && bash docker-compose/scripts/dc.sh up -d --build --remove-orphans"
 
       # ── Step 6: Cleanup + keepalive ───────────────────────────
       - name: Clean up unused images (Linux)

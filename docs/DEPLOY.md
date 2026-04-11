@@ -10,10 +10,10 @@ This template provides a **drop-in Docker Compose stack** for deploying any cont
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│                  compose.core.yml                   │
+│            docker-compose/compose.core.yml          │
 │   caddy (reverse proxy) + cloudflared (tunnel)      │
 ├──────────────────┬──────────────────────────────────┤
-│ compose.ops.yml  │ compose.access.yml               │
+│ docker-compose/compose.ops.yml │ docker-compose/compose.access.yml │
 │ dozzle           │ tailscale-linux                  │
 │ filebrowser      │ tailscale-windows                │
 │ webssh           ├──────────────────────────────────┤
@@ -66,7 +66,7 @@ All subdomains are derived from `PROJECT_NAME` + `DOMAIN` — no manual `SUBDOMA
 
 ```mermaid
 flowchart LR
-    ENV[.env\nENABLE_* flags] --> DC[dc.sh]
+    ENV[.env\nENABLE_* flags] --> DC[docker-compose/scripts/dc.sh]
     DC -->|--profile dozzle| P1[dozzle service]
     DC -->|--profile filebrowser| P2[filebrowser service]
     DC -->|--profile webssh-linux| P3[webssh service\nLinux only]
@@ -89,7 +89,7 @@ flowchart TD
     OS -->|Linux| S4L[setup-linux.sh\nGenerate SSH keypair\nStart sshd]
     OS -->|Windows| S4W[setup-windows.ps1\nInstall Docker in WSL2\nStart ttyd]
 
-    S4L --> S5[docker compose up -d --build]
+    S4L --> S5[bash docker-compose/scripts/dc.sh up -d --build]
     S4W --> S5
 
     S5 --> S6[collect-artifacts.sh\nSave logs + inspect]
@@ -288,14 +288,16 @@ Docker control:
 
 ```
 docker-stack-template/
-├── compose.core.yml      ← always-on infrastructure
-├── compose.ops.yml       ← feature-flagged ops tools
-├── compose.access.yml    ← feature-flagged VPN
+├── docker-compose/
+│   ├── compose.core.yml      ← always-on infrastructure
+│   ├── compose.ops.yml       ← feature-flagged ops tools
+│   ├── compose.access.yml    ← feature-flagged VPN
+│   └── scripts/
+│       ├── dc.sh             ← compose orchestrator (reads .env flags)
+│       ├── up.sh             ← shortcut: build + start
+│       ├── down.sh           ← shortcut: stop
+│       └── logs.sh           ← shortcut: follow logs
 ├── compose.apps.yml      ← your application
-├── dc.sh                 ← compose orchestrator (reads .env flags)
-├── up.sh                 ← shortcut: build + start
-├── down.sh               ← shortcut: stop
-├── logs.sh               ← shortcut: follow logs
 ├── .env.example          ← reference config
 ├── package.json          ← npm script runner
 ├── scripts/

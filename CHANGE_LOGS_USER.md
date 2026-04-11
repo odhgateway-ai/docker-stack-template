@@ -47,7 +47,7 @@ If upgrading from the previous `docker-compose.yml` setup:
 
 1. Replace `SUBDOMAIN_APP/DOZZLE/FILEBROWSER/WEBSSH` with just `PROJECT_NAME`
 2. Replace `TAILSCALE_CLIENT_SECRET` with `TAILSCALE_AUTHKEY`
-3. Replace `docker compose up` with `bash dc.sh up` or `npm run dockerapp-exec:up`
+3. Replace `docker compose up` with `bash docker-compose/scripts/dc.sh up` or `npm run dockerapp-exec:up`
 4. Update `cloudflared/config.yml` manually from `cloudflared/config.yml.example` if you use Cloudflare Tunnel
 
 See `docs/DEPLOY.md` for the full migration guide.

@@ -10,9 +10,9 @@ const { execSync } = require('child_process');
 const fs           = require('fs');
 
 const FILES = [
-  'compose.core.yml',
-  'compose.ops.yml',
-  'compose.access.yml',
+  'docker-compose/compose.core.yml',
+  'docker-compose/compose.ops.yml',
+  'docker-compose/compose.access.yml',
   'compose.apps.yml',
 ];
 
@@ -39,7 +39,7 @@ if (fs.existsSync('.env')) {
 }
 
 const fileArgs = FILES.map(f => `-f ${f}`).join(' ');
-const cmd = `bash dc.sh config --quiet 2>&1`;
+const cmd = `bash docker-compose/scripts/dc.sh config --quiet 2>&1`;
 
 console.log(`\n    Running: docker compose ${fileArgs} config ...\n`);
 

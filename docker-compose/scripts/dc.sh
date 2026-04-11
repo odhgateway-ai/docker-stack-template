@@ -4,14 +4,17 @@
 #  Reads .env feature flags → auto-selects profiles → runs compose
 #
 #  Usage:
-#    ./dc.sh up -d --build        # start stack
-#    ./dc.sh down                 # stop stack
-#    ./dc.sh logs -f              # follow logs
-#    ./dc.sh ps                   # show status
-#    ./dc.sh config               # validate merged config
-#    ./dc.sh <any compose command>
+#    bash docker-compose/scripts/dc.sh up -d --build
+#    bash docker-compose/scripts/dc.sh down
+#    bash docker-compose/scripts/dc.sh logs -f
+#    bash docker-compose/scripts/dc.sh ps
+#    bash docker-compose/scripts/dc.sh config
+#    bash docker-compose/scripts/dc.sh <any compose command>
 # ================================================================
 set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 trim() {
   local s="$1"
@@ -62,8 +65,8 @@ load_env_file() {
 }
 
 # ── Load .env ─────────────────────────────────────────────────────
-if [ -f .env ]; then
-  load_env_file .env
+if [ -f "$ROOT_DIR/.env" ]; then
+  load_env_file "$ROOT_DIR/.env"
 else
   echo "⚠️  .env not found — using defaults. Run: cp .env.example .env" >&2
 fi
@@ -112,10 +115,10 @@ fi
 
 # ── Compose file list ──────────────────────────────────────────
 FILES=(
-  -f compose.core.yml
-  -f compose.ops.yml
-  -f compose.access.yml
-  -f compose.apps.yml
+  -f "$ROOT_DIR/docker-compose/compose.core.yml"
+  -f "$ROOT_DIR/docker-compose/compose.ops.yml"
+  -f "$ROOT_DIR/docker-compose/compose.access.yml"
+  -f "$ROOT_DIR/compose.apps.yml"
 )
 
 # ── Debug info (set DC_VERBOSE=1 to show) ─────────────────────
@@ -133,6 +136,7 @@ fi
 # ── Execute ───────────────────────────────────────────────────
 exec docker compose \
   "${FILES[@]}" \
+  --project-directory "$ROOT_DIR" \
   --project-name "${STACK_NAME:-mystack}" \
   "${PROFILE_ARGS[@]}" \
   "$@"
