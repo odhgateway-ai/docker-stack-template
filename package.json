@@ -12,6 +12,7 @@
     "dockerapp-validate:compose": "node docker-compose/scripts/validate-compose.js",
     "dockerapp-validate:ts": "node docker-compose/scripts/validate-ts.js",
     "dockerapp-validate:all": "npm run dockerapp-validate:env && npm run dockerapp-validate:compose && npm run dockerapp-validate:ts",
+    "tailscale-init": "node tailscale/tailscale-init.js .env",
     "dockerapp-gen:👇👇👇👇👇": "==dockerapp-gen==",
     "dockerapp-gen:caddy-hash": "docker run --rm caddy:alpine caddy hash-password --plaintext Admin@123Admin@123",
     "dockerapp-exec:👇👇👇👇👇": "==dockerapp-exec==",

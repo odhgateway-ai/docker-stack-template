@@ -1,0 +1,799 @@
+#!/usr/bin/env node
+// ================================================================
+//  tailscale/tailscale-init.js
+//  Ensures tags from .env exist in Tailscale ACL tagOwners (merge-only),
+//  optionally mirrors tagOwners to a local ACL JSON/HuJSON file, and
+//  updates TAILSCALE_TAILNET_DOMAIN in .env from DNS search paths.
+//
+//  Usage:
+//    node tailscale/tailscale-init.js .env
+//    node tailscale/tailscale-init.js .env --yes
+//
+//  Required in target .env (or process env):
+//    TAILSCALE_CLIENDID (or TAILSCALE_CLIENTID)
+//      - OAuth client ID (for example: kFhHFn4CBE11CNTRL)
+//    TAILSCALE_AUTHKEY
+//      - OAuth client secret (tskey-client-...)
+//    TAILSCALE_TAGS
+//      - Comma-separated tags to ensure exist in tagOwners
+//
+//  Optional:
+//    TS_TAILNET                - Tailnet identifier for API calls (default: -)
+//    TAILSCALE_TAG_OWNERS      - Owners for newly created tags (default: autogroup:admin)
+//    TAILSCALE_ACL_JSON_PATH   - Local ACL JSON/HuJSON file to merge tags into
+// ================================================================
+"use strict";
+
+const fs = require("fs");
+const path = require("path");
+const https = require("https");
+const readline = require("readline");
+
+function unquote(value) {
+  if (!value) return value;
+  if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+    return value.slice(1, -1);
+  }
+  return value;
+}
+
+function parseEnv(content) {
+  const lines = content.split(/\r?\n/);
+  const map = {};
+
+  lines.forEach((line, index) => {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) return;
+
+    const eq = line.indexOf("=");
+    if (eq < 0) return;
+
+    const key = line.slice(0, eq).trim();
+    const rawValue = line.slice(eq + 1).trim();
+    if (!key) return;
+
+    map[key] = {
+      value: unquote(rawValue),
+      lineIndex: index,
+    };
+  });
+
+  return { lines, map };
+}
+
+function getEnvValue(envMap, key) {
+  return envMap[key] ? envMap[key].value : "";
+}
+
+function parseCsv(value) {
+  if (!value) return [];
+  return value
+    .split(",")
+    .map((v) => v.trim())
+    .filter(Boolean);
+}
+
+function uniqueStable(values) {
+  const seen = new Set();
+  const out = [];
+  for (const value of values) {
+    if (seen.has(value)) continue;
+    seen.add(value);
+    out.push(value);
+  }
+  return out;
+}
+
+function isTag(value) {
+  return /^tag:[A-Za-z0-9][A-Za-z0-9_-]*$/.test(value);
+}
+
+function isLikelyDomain(value) {
+  if (!value) return false;
+  if (value.includes("://") || value.includes("/") || /\s/.test(value)) return false;
+  return /^([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}$/.test(value);
+}
+
+function normalizeTailnetDomain(value) {
+  const v = (value || "").trim();
+  if (!v) return "";
+  if (v === "-" || v.toLowerCase() === "null" || v.toLowerCase() === "undefined") return "";
+  return v;
+}
+
+function pickDomainFromSearchPaths(paths) {
+  if (!Array.isArray(paths)) return "";
+  const clean = paths
+    .map((p) => (typeof p === "string" ? p.trim() : ""))
+    .filter(Boolean);
+  return (
+    clean.find((p) => p.toLowerCase().endsWith(".ts.net")) ||
+    clean.find((p) => isLikelyDomain(p)) ||
+    ""
+  );
+}
+
+function extractDomainFromDeviceName(name) {
+  if (typeof name !== "string") return "";
+  const clean = name.trim().toLowerCase();
+  if (!clean || !clean.endsWith(".ts.net")) return "";
+  const parts = clean.split(".");
+  if (parts.length < 3) return "";
+  const suffix = parts.slice(1).join(".");
+  return isLikelyDomain(suffix) ? suffix : "";
+}
+
+function pickMostFrequent(items) {
+  if (!items.length) return "";
+  const counts = new Map();
+  for (const item of items) {
+    counts.set(item, (counts.get(item) || 0) + 1);
+  }
+  let best = "";
+  let bestCount = 0;
+  for (const [item, count] of counts.entries()) {
+    if (count > bestCount) {
+      best = item;
+      bestCount = count;
+    }
+  }
+  return best;
+}
+
+function askConfirm(question) {
+  return new Promise((resolve) => {
+    const rl = readline.createInterface({
+      input: process.stdin,
+      output: process.stdout,
+    });
+    rl.question(question, (answer) => {
+      rl.close();
+      resolve(answer.trim().toLowerCase());
+    });
+  });
+}
+
+function apiRequestJson({
+  method,
+  endpointPath,
+  accessToken,
+  body,
+  extraHeaders,
+}) {
+  return new Promise((resolve, reject) => {
+    const payload = body === undefined ? "" : JSON.stringify(body);
+    const headers = {
+      Accept: "application/json",
+      ...extraHeaders,
+    };
+    if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
+    if (body !== undefined) {
+      headers["Content-Type"] = "application/json";
+      headers["Content-Length"] = Buffer.byteLength(payload);
+    }
+
+    const req = https.request(
+      {
+        hostname: "api.tailscale.com",
+        path: `/api/v2${endpointPath}`,
+        method,
+        headers,
+      },
+      (res) => {
+        let data = "";
+        res.on("data", (chunk) => {
+          data += chunk;
+        });
+        res.on("end", () => {
+          let parsed = null;
+          try {
+            parsed = data ? JSON.parse(data) : null;
+          } catch {
+            parsed = null;
+          }
+          resolve({
+            status: res.statusCode || 0,
+            headers: res.headers || {},
+            body: parsed,
+            raw: data,
+          });
+        });
+      },
+    );
+
+    req.on("error", reject);
+    if (body !== undefined) req.write(payload);
+    req.end();
+  });
+}
+
+function getOAuthAccessToken(clientId, clientSecret) {
+  return new Promise((resolve, reject) => {
+    const form = new URLSearchParams({
+      grant_type: "client_credentials",
+      client_id: clientId,
+      client_secret: clientSecret,
+    }).toString();
+
+    const req = https.request(
+      {
+        hostname: "api.tailscale.com",
+        path: "/api/v2/oauth/token",
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          "Content-Length": Buffer.byteLength(form),
+          Accept: "application/json",
+        },
+      },
+      (res) => {
+        let data = "";
+        res.on("data", (chunk) => {
+          data += chunk;
+        });
+        res.on("end", () => {
+          let parsed = null;
+          try {
+            parsed = data ? JSON.parse(data) : null;
+          } catch {
+            parsed = null;
+          }
+          resolve({
+            status: res.statusCode || 0,
+            body: parsed,
+            raw: data,
+          });
+        });
+      },
+    );
+
+    req.on("error", reject);
+    req.write(form);
+    req.end();
+  });
+}
+
+function mergeTagOwners(policyObject, requiredTags, defaultOwners) {
+  if (!policyObject || typeof policyObject !== "object" || Array.isArray(policyObject)) {
+    throw new Error("ACL policy is not a JSON object.");
+  }
+
+  const next = { ...policyObject };
+  const currentOwners =
+    next.tagOwners && typeof next.tagOwners === "object" && !Array.isArray(next.tagOwners)
+      ? { ...next.tagOwners }
+      : {};
+
+  const addedTags = [];
+  for (const tag of requiredTags) {
+    if (currentOwners[tag]) continue;
+    currentOwners[tag] = [...defaultOwners];
+    addedTags.push(tag);
+  }
+
+  if (addedTags.length > 0) {
+    next.tagOwners = currentOwners;
+  }
+
+  return {
+    nextPolicy: next,
+    addedTags,
+  };
+}
+
+function stripJsonComments(input) {
+  let output = "";
+  let i = 0;
+  let inString = false;
+  let escaped = false;
+
+  while (i < input.length) {
+    const ch = input[i];
+    const next = input[i + 1];
+
+    if (inString) {
+      output += ch;
+      if (escaped) {
+        escaped = false;
+      } else if (ch === "\\") {
+        escaped = true;
+      } else if (ch === '"') {
+        inString = false;
+      }
+      i += 1;
+      continue;
+    }
+
+    if (ch === '"') {
+      inString = true;
+      output += ch;
+      i += 1;
+      continue;
+    }
+
+    if (ch === "/" && next === "/") {
+      i += 2;
+      while (i < input.length && input[i] !== "\n") i += 1;
+      continue;
+    }
+
+    if (ch === "/" && next === "*") {
+      i += 2;
+      while (i < input.length && !(input[i] === "*" && input[i + 1] === "/")) i += 1;
+      i += 2;
+      continue;
+    }
+
+    output += ch;
+    i += 1;
+  }
+
+  return output;
+}
+
+function removeTrailingCommas(input) {
+  let output = "";
+  let i = 0;
+  let inString = false;
+  let escaped = false;
+
+  while (i < input.length) {
+    const ch = input[i];
+
+    if (inString) {
+      output += ch;
+      if (escaped) {
+        escaped = false;
+      } else if (ch === "\\") {
+        escaped = true;
+      } else if (ch === '"') {
+        inString = false;
+      }
+      i += 1;
+      continue;
+    }
+
+    if (ch === '"') {
+      inString = true;
+      output += ch;
+      i += 1;
+      continue;
+    }
+
+    if (ch === ",") {
+      let j = i + 1;
+      while (j < input.length && /\s/.test(input[j])) j += 1;
+      if (input[j] === "]" || input[j] === "}") {
+        i += 1;
+        continue;
+      }
+    }
+
+    output += ch;
+    i += 1;
+  }
+
+  return output;
+}
+
+function parseJsonOrHujson(text) {
+  try {
+    return JSON.parse(text);
+  } catch {
+    const noComments = stripJsonComments(text);
+    const noTrailingCommas = removeTrailingCommas(noComments);
+    return JSON.parse(noTrailingCommas);
+  }
+}
+
+function upsertEnvLine(lines, envMap, key, value) {
+  const newLine = `${key}=${value}`;
+  const existing = envMap[key];
+
+  if (existing) {
+    lines[existing.lineIndex] = newLine;
+    return;
+  }
+
+  if (lines.length && lines[lines.length - 1].trim() !== "") {
+    lines.push("");
+  }
+  lines.push(newLine);
+}
+
+function printList(header, values) {
+  if (!values.length) return;
+  console.log(header);
+  values.forEach((v) => console.log(`    - ${v}`));
+  console.log();
+}
+
+async function main() {
+  const args = process.argv.slice(2);
+  const envPathArg = args.find((arg) => !arg.startsWith("-"));
+  const autoYes = args.includes("--yes") || args.includes("-y");
+
+  if (!envPathArg) {
+    console.error("❌  Missing .env path argument.");
+    console.error("    Usage: node tailscale/tailscale-init.js .env [--yes]");
+    process.exit(1);
+  }
+
+  const envPath = path.resolve(process.cwd(), envPathArg);
+  if (!fs.existsSync(envPath)) {
+    console.error(`❌  Env file not found: ${envPath}`);
+    process.exit(1);
+  }
+
+  const rawEnv = fs.readFileSync(envPath, "utf-8");
+  const envEol = rawEnv.includes("\r\n") ? "\r\n" : "\n";
+  const envHadTrailingNewline = rawEnv.endsWith("\n");
+  const { lines: envLines, map: envMap } = parseEnv(rawEnv);
+
+  const warnings = [];
+  const errors = [];
+
+  const tailscaleAuthKey = process.env.TAILSCALE_AUTHKEY || getEnvValue(envMap, "TAILSCALE_AUTHKEY");
+  const tailscaleClientId =
+    process.env.TAILSCALE_CLIENDID ||
+    getEnvValue(envMap, "TAILSCALE_CLIENDID") ||
+    process.env.TAILSCALE_CLIENTID ||
+    getEnvValue(envMap, "TAILSCALE_CLIENTID");
+  const tailnet = process.env.TS_TAILNET || getEnvValue(envMap, "TS_TAILNET") || "-";
+  const existingTailnetDomainRaw = getEnvValue(envMap, "TAILSCALE_TAILNET_DOMAIN");
+  const existingTailnetDomain = normalizeTailnetDomain(existingTailnetDomainRaw);
+  const aclFilePathRaw = process.env.TAILSCALE_ACL_JSON_PATH || getEnvValue(envMap, "TAILSCALE_ACL_JSON_PATH");
+
+  const requiredTagsRaw = parseCsv(getEnvValue(envMap, "TAILSCALE_TAGS"));
+  const requiredTags = uniqueStable(requiredTagsRaw.filter(isTag));
+  const invalidTags = uniqueStable(requiredTagsRaw.filter((t) => !isTag(t)));
+
+  const defaultOwnersRaw = parseCsv(getEnvValue(envMap, "TAILSCALE_TAG_OWNERS") || "autogroup:admin");
+  const defaultOwners = uniqueStable(defaultOwnersRaw.filter(Boolean));
+
+  if (!tailscaleAuthKey) {
+    errors.push("Missing TAILSCALE_AUTHKEY.");
+  } else if (!tailscaleAuthKey.startsWith("tskey-client-")) {
+    warnings.push("TAILSCALE_AUTHKEY should be OAuth client secret (tskey-client-...) for tailscale-init.");
+  }
+
+  if (!tailscaleClientId) {
+    errors.push("Missing TAILSCALE_CLIENDID (or TAILSCALE_CLIENTID).");
+  }
+  if (getEnvValue(envMap, "TAILSCALE_CLIENTID") && !getEnvValue(envMap, "TAILSCALE_CLIENDID")) {
+    warnings.push("Using fallback TAILSCALE_CLIENTID. Recommended key for this project is TAILSCALE_CLIENDID.");
+  }
+  if (tailscaleClientId && !/^[A-Za-z0-9]+$/.test(tailscaleClientId)) {
+    warnings.push(`TAILSCALE_CLIENDID contains unusual characters: ${tailscaleClientId}`);
+  }
+
+  if (!tailnet) {
+    errors.push("Unable to determine tailnet value (TS_TAILNET).");
+  }
+
+  if (!requiredTags.length) {
+    errors.push("TAILSCALE_TAGS is empty or invalid. Provide one or more tags (example: tag:ci,tag:container).");
+  }
+  if (invalidTags.length) {
+    warnings.push(`Ignoring invalid tag format(s): ${invalidTags.join(", ")}`);
+  }
+  if (!defaultOwners.length) {
+    errors.push("TAILSCALE_TAG_OWNERS is empty. Example: autogroup:admin");
+  }
+
+  if (existingTailnetDomain && !isLikelyDomain(existingTailnetDomain)) {
+    warnings.push(`TAILSCALE_TAILNET_DOMAIN may be invalid: ${existingTailnetDomainRaw}`);
+  }
+
+  console.log("\n🔧  Tailscale Init (merge-only)\n");
+  console.log(`    Env file : ${envPath}`);
+  console.log(`    Tailnet  : ${tailnet}`);
+  console.log(`    Tags(env): ${requiredTags.join(", ")}\n`);
+
+  if (errors.length) {
+    printList("❌  Cannot continue:", errors);
+    if (warnings.length) printList("⚠️   Warnings:", warnings);
+    process.exit(1);
+  }
+
+  if (warnings.length) printList("⚠️   Pre-check warnings:", warnings);
+
+  let accessToken = "";
+  try {
+    const tokenRes = await getOAuthAccessToken(tailscaleClientId, tailscaleAuthKey);
+    if (tokenRes.status === 200 && tokenRes.body && tokenRes.body.access_token) {
+      accessToken = tokenRes.body.access_token;
+    } else if (tokenRes.status === 400) {
+      errors.push("OAuth token request failed (400). Check TAILSCALE_CLIENDID/TAILSCALE_AUTHKEY format.");
+    } else if (tokenRes.status === 401 || tokenRes.status === 403) {
+      errors.push("OAuth token request was unauthorized. Verify TAILSCALE_CLIENDID + TAILSCALE_AUTHKEY.");
+    } else {
+      errors.push(`OAuth token request failed: HTTP ${tokenRes.status}.`);
+    }
+  } catch (err) {
+    errors.push(`Failed to request OAuth access token: ${err.message}`);
+  }
+
+  if (!accessToken) {
+    printList("❌  API fetch failed:", errors);
+    process.exit(1);
+  }
+
+  const encodedTailnet = encodeURIComponent(tailnet);
+
+  let remotePolicy = null;
+  let remotePolicyETag = "";
+  let remoteAddedTags = [];
+  let remoteNextPolicy = null;
+  let apiTailnetDomain = "";
+  let apiTailnetDomainSource = "";
+
+  try {
+    const aclRes = await apiRequestJson({
+      method: "GET",
+      endpointPath: `/tailnet/${encodedTailnet}/acl`,
+      accessToken,
+    });
+
+    if (aclRes.status === 200 && aclRes.body && typeof aclRes.body === "object") {
+      remotePolicy = aclRes.body;
+      remotePolicyETag = aclRes.headers.etag || "";
+      const merged = mergeTagOwners(remotePolicy, requiredTags, defaultOwners);
+      remoteAddedTags = merged.addedTags;
+      remoteNextPolicy = merged.nextPolicy;
+    } else if (aclRes.status === 401) {
+      errors.push("Unauthorized (401) when reading ACL. Check OAuth credential scopes.");
+    } else if (aclRes.status === 403) {
+      errors.push("Forbidden (403) when reading ACL. OAuth token needs policy_file:read scope.");
+    } else {
+      errors.push(`Failed to read ACL: HTTP ${aclRes.status}.`);
+    }
+  } catch (err) {
+    errors.push(`Failed to read ACL: ${err.message}`);
+  }
+
+  // Try multiple sources to infer tailnet domain.
+  // 1) DNS search paths
+  try {
+    const dnsRes = await apiRequestJson({
+      method: "GET",
+      endpointPath: `/tailnet/${encodedTailnet}/dns/searchpaths`,
+      accessToken,
+    });
+
+    if (dnsRes.status === 200 && dnsRes.body && Array.isArray(dnsRes.body.searchPaths)) {
+      const candidate = pickDomainFromSearchPaths(dnsRes.body.searchPaths);
+      if (candidate) {
+        apiTailnetDomain = candidate;
+        apiTailnetDomainSource = "dns/searchpaths";
+      }
+    } else if (dnsRes.status === 401) {
+      warnings.push("Cannot read dns/searchpaths (401). Missing or invalid DNS read scope.");
+    } else if (dnsRes.status === 403) {
+      warnings.push("Cannot read dns/searchpaths (403). OAuth token likely missing dns:read scope.");
+    } else {
+      warnings.push(`dns/searchpaths returned HTTP ${dnsRes.status}.`);
+    }
+  } catch (err) {
+    warnings.push(`dns/searchpaths request failed: ${err.message}`);
+  }
+
+  // 2) Full DNS configuration
+  if (!apiTailnetDomain) {
+    try {
+      const dnsCfgRes = await apiRequestJson({
+        method: "GET",
+        endpointPath: `/tailnet/${encodedTailnet}/dns/configuration`,
+        accessToken,
+      });
+
+      if (dnsCfgRes.status === 200 && dnsCfgRes.body && typeof dnsCfgRes.body === "object") {
+        const candidate = pickDomainFromSearchPaths(dnsCfgRes.body.searchPaths);
+        if (candidate) {
+          apiTailnetDomain = candidate;
+          apiTailnetDomainSource = "dns/configuration";
+        }
+      } else if (dnsCfgRes.status === 401) {
+        warnings.push("Cannot read dns/configuration (401). Missing or invalid DNS read scope.");
+      } else if (dnsCfgRes.status === 403) {
+        warnings.push("Cannot read dns/configuration (403). OAuth token likely missing dns:read scope.");
+      } else {
+        warnings.push(`dns/configuration returned HTTP ${dnsCfgRes.status}.`);
+      }
+    } catch (err) {
+      warnings.push(`dns/configuration request failed: ${err.message}`);
+    }
+  }
+
+  // 3) Device MagicDNS names
+  if (!apiTailnetDomain) {
+    try {
+      const devicesRes = await apiRequestJson({
+        method: "GET",
+        endpointPath: `/tailnet/${encodedTailnet}/devices`,
+        accessToken,
+      });
+
+      if (devicesRes.status === 200 && devicesRes.body && Array.isArray(devicesRes.body.devices)) {
+        const domains = devicesRes.body.devices
+          .map((d) => extractDomainFromDeviceName(d && d.name))
+          .filter(Boolean);
+        const candidate = pickMostFrequent(domains);
+        if (candidate) {
+          apiTailnetDomain = candidate;
+          apiTailnetDomainSource = "devices.name";
+        }
+      } else if (devicesRes.status === 401) {
+        warnings.push("Cannot read devices (401). Missing or invalid devices:core:read scope.");
+      } else if (devicesRes.status === 403) {
+        warnings.push("Cannot read devices (403). OAuth token likely missing devices:core:read scope.");
+      } else {
+        warnings.push(`devices endpoint returned HTTP ${devicesRes.status}.`);
+      }
+    } catch (err) {
+      warnings.push(`devices request failed: ${err.message}`);
+    }
+  }
+
+  if (errors.length) {
+    printList("❌  API fetch failed:", errors);
+    if (warnings.length) printList("⚠️   Additional warnings:", warnings);
+    process.exit(1);
+  }
+
+  // Optional local ACL file merge (only plan here, write after confirm).
+  let aclFileResolved = "";
+  let aclFileObject = null;
+  let aclFileAddedTags = [];
+  let aclFileEol = "\n";
+  let aclFileHadTrailingNewline = false;
+  let aclFileExists = false;
+
+  if (aclFilePathRaw) {
+    aclFileResolved = path.resolve(process.cwd(), aclFilePathRaw);
+    aclFileExists = fs.existsSync(aclFileResolved);
+
+    if (!aclFileExists) {
+      warnings.push(`TAILSCALE_ACL_JSON_PATH not found: ${aclFileResolved}`);
+    } else {
+      try {
+        const aclText = fs.readFileSync(aclFileResolved, "utf-8");
+        aclFileEol = aclText.includes("\r\n") ? "\r\n" : "\n";
+        aclFileHadTrailingNewline = aclText.endsWith("\n");
+        aclFileObject = parseJsonOrHujson(aclText);
+
+        const mergedFile = mergeTagOwners(aclFileObject, requiredTags, defaultOwners);
+        aclFileAddedTags = mergedFile.addedTags;
+        aclFileObject = mergedFile.nextPolicy;
+      } catch (err) {
+        warnings.push(`Cannot parse local ACL file as JSON/HuJSON: ${aclFileResolved} (${err.message})`);
+        aclFileObject = null;
+      }
+    }
+  }
+
+  if (!apiTailnetDomain) {
+    errors.push(
+      "Could not infer TAILSCALE_TAILNET_DOMAIN from Tailscale API (tried: dns/searchpaths, dns/configuration, devices).",
+    );
+  }
+
+  if (errors.length) {
+    printList("❌  Cannot continue:", errors);
+    if (warnings.length) printList("⚠️   Additional warnings:", warnings);
+    process.exit(1);
+  }
+
+  const envUpdates = [];
+  if (apiTailnetDomain && apiTailnetDomain !== existingTailnetDomain) {
+    envUpdates.push({
+      key: "TAILSCALE_TAILNET_DOMAIN",
+      before: normalizeTailnetDomain(existingTailnetDomainRaw) || "(missing)",
+      after: apiTailnetDomain,
+    });
+  }
+
+  const hasRemoteUpdate = remoteAddedTags.length > 0;
+  const hasAclFileUpdate = aclFileAddedTags.length > 0;
+  const hasEnvUpdate = envUpdates.length > 0;
+
+  if (!hasRemoteUpdate && !hasAclFileUpdate && !hasEnvUpdate) {
+    console.log("✅  No changes needed.");
+    if (warnings.length) printList("⚠️   Warnings:", warnings);
+    console.log();
+    process.exit(0);
+  }
+
+  console.log("Planned changes:");
+  if (hasRemoteUpdate) {
+    console.log("  - Remote Tailscale ACL:");
+    console.log(`      Add missing tagOwners for: ${remoteAddedTags.join(", ")}`);
+    console.log("      Existing ACL rules/fields are preserved.");
+  }
+  if (hasAclFileUpdate) {
+    console.log(`  - Local ACL file (${aclFilePathRaw}):`);
+    console.log(`      Add missing tagOwners for: ${aclFileAddedTags.join(", ")}`);
+    console.log("      Existing config keys are preserved.");
+  }
+  if (hasEnvUpdate) {
+    envUpdates.forEach((u) => {
+      console.log(`  - ${u.key}`);
+      console.log(`      from: ${u.before}`);
+      console.log(`      to  : ${u.after}`);
+      if (apiTailnetDomainSource) {
+        console.log(`      via : ${apiTailnetDomainSource}`);
+      }
+    });
+  }
+  console.log();
+
+  if (warnings.length) printList("⚠️   Warnings:", warnings);
+
+  let approved = autoYes;
+  if (!approved) {
+    if (!process.stdin.isTTY) {
+      console.error("❌  Confirmation required but no interactive TTY available.");
+      console.error("    Re-run with --yes to apply non-interactively.\n");
+      process.exit(1);
+    }
+    const answer = await askConfirm("Apply these changes? (y/N): ");
+    approved = answer === "y" || answer === "yes";
+  }
+
+  if (!approved) {
+    console.log("\nℹ️   Cancelled. No changes applied.\n");
+    process.exit(0);
+  }
+
+  // 1) Update remote ACL first.
+  if (hasRemoteUpdate) {
+    const headers = {};
+    if (remotePolicyETag) headers["If-Match"] = remotePolicyETag;
+
+    const postRes = await apiRequestJson({
+      method: "POST",
+      endpointPath: `/tailnet/${encodedTailnet}/acl`,
+      accessToken,
+      body: remoteNextPolicy,
+      extraHeaders: headers,
+    });
+
+    if (postRes.status !== 200) {
+      console.error(`\n❌  Failed to update remote ACL (HTTP ${postRes.status}).`);
+      if (postRes.body && postRes.body.message) {
+        console.error(`    ${postRes.body.message}`);
+      }
+      console.error("    No local file/.env changes were applied after this failure.\n");
+      process.exit(1);
+    }
+    console.log(`✅  Remote ACL updated. Added tags: ${remoteAddedTags.join(", ")}`);
+  }
+
+  // 2) Update local ACL file if configured and parsable.
+  if (hasAclFileUpdate && aclFileResolved && aclFileObject) {
+    let localContent = JSON.stringify(aclFileObject, null, 2);
+    if (aclFileHadTrailingNewline) localContent += aclFileEol;
+    fs.writeFileSync(aclFileResolved, localContent, "utf-8");
+    console.log(`✅  Local ACL file updated: ${aclFilePathRaw}`);
+  }
+
+  // 3) Update env last.
+  if (hasEnvUpdate) {
+    envUpdates.forEach((u) => {
+      upsertEnvLine(envLines, envMap, u.key, u.after);
+    });
+    let updatedEnv = envLines.join(envEol);
+    if (envHadTrailingNewline && !updatedEnv.endsWith(envEol)) {
+      updatedEnv += envEol;
+    }
+    fs.writeFileSync(envPath, updatedEnv, "utf-8");
+    console.log(`✅  Updated ${envPathArg}`);
+  }
+
+  console.log("\nDone.\n");
+}
+
+main().catch((err) => {
+  console.error(`❌  Unexpected error: ${err.message}`);
+  process.exit(1);
+});
