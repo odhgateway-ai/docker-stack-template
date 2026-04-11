@@ -4,11 +4,11 @@
 
 name: docker-stack-template
 
-trigger:
-  none # manual trigger only (equivalent to workflow_dispatch)
-  # branches:
-  #   include:
-  #     - main
+# trigger:
+#   none # manual trigger only (equivalent to workflow_dispatch)
+# branches:
+#   include:
+#     - main
 
 variables:
   STOP_RUNNER_ID: "$(Build.BuildId)-$(System.JobAttempt)"
@@ -32,15 +32,15 @@ steps:
     displayName: "Detect OS environment"
 
   # ── Step 3: OS-specific setup ─────────────────────────────
-  - bash: bash .github/scripts/setup-linux.sh
+  - bash: dotenvrtdb -e .env -- bash .github/scripts/setup-linux.sh
     displayName: "Setup environment (Linux)"
 
   # ── Step 4: Validate config ────────────────────────────────
-  - bash: node scripts/validate-env.js
+  - bash: dotenvrtdb -e .env -- node scripts/validate-env.js
     displayName: "Validate env"
 
   # ── Step 5: Deploy via dc.sh ──────────────────────────────
-  - bash: bash dc.sh up -d --build --remove-orphans
+  - bash: dotenvrtdb -e .env -- bash dc.sh up -d --build --remove-orphans
     displayName: "Build & start services (Linux)"
 
   # ── Step 6: Cleanup + keepalive ───────────────────────────
@@ -51,11 +51,9 @@ steps:
       dotenvrtdb -e .env -- dotenvrtdb runner set-stoprunnerid
       dotenvrtdb -e .env -- dotenvrtdb runner keepalive
     displayName: "dotenvrtdb runner keepalive + set-stoprunnerid"
-    env:
-      DOTENVRTDB_URL: $(DOTENVRTDB_URL)
 
   # ── Step 7: Collect artifacts (always) ────────────────────
-  - bash: bash .github/scripts/collect-artifacts.sh
+  - bash: dotenvrtdb -e .env -- bash .github/scripts/collect-artifacts.sh
     displayName: "Collect docker runtime artifacts (Linux)"
     condition: always()
 
