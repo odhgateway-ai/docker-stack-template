@@ -101,12 +101,10 @@ Plus:
 - `DIRECTORY_STRUCTURE` snapshot (tree, depth-limited)
 
 <!-- BEGIN:EMBEDDED_FILES -->
-
-Generated at: 2026-04-12T04:00:44.383Z
+Generated at: 2026-04-12T07:42:43.008Z
 Use this snapshot as direct editing context.
 
 ### `DIRECTORY_STRUCTURE`
-
 ```text
 ./
   - .azure/
@@ -178,7 +176,6 @@ Use this snapshot as direct editing context.
 ```
 
 ### `.env.example`
-
 ```text
 # ================================================================
 #  .env.example — Docker Stack Template
@@ -339,7 +336,6 @@ STOP_FIREBASE_URL=https://your-project-default-rtdb.region.firebasedatabase.app/
 ```
 
 ### `compose.apps.yml`
-
 ```yaml
 # ================================================================
 #  compose.apps.yml — Application Layer
@@ -392,7 +388,6 @@ services:
 ```
 
 ### `docker-compose/compose.core.yml`
-
 ```yaml
 # ================================================================
 #  compose.core.yml — Core Infrastructure
@@ -447,7 +442,6 @@ services:
 ```
 
 ### `docker-compose/compose.ops.yml`
-
 ```yaml
 # ================================================================
 #  compose.ops.yml — Operational Tools
@@ -565,7 +559,6 @@ services:
 ```
 
 ### `docker-compose/compose.access.yml`
-
 ```yaml
 # ================================================================
 #  compose.access.yml — Network Access Layer
@@ -726,7 +719,6 @@ services:
 ```
 
 ### `docker-compose/scripts/dc.sh`
-
 ```bash
 #!/usr/bin/env bash
 # ================================================================
@@ -964,7 +956,6 @@ exec docker compose \
 ```
 
 ### `docker-compose/scripts/validate-env.js`
-
 ```js
 #!/usr/bin/env node
 "use strict";
@@ -1067,7 +1058,7 @@ function isValidHttpsJsonUrl(v) {
 
 // 1) Required core env from compose files
 checkRequired("PROJECT_NAME", "docker project/network + subdomain prefix", (v) =>
-  /^[a-z0-9][a-z0-9-]*$/.test(v) ? null : "only lowercase letters, numbers, hyphen",
+  /^[a-z0-9][a-z0-9-]*$/.test(v) ? null : "only lowercase letters, numbers, hyphen"
 );
 checkRequired("DOMAIN", "root domain", isValidDomain);
 checkRequired("CADDY_EMAIL", "caddy email label", (v) => (v.includes("@") ? null : "invalid email"));
@@ -1115,12 +1106,16 @@ if ((env.ENABLE_WEBSSH || "true") === "true") {
 
 // 6) Tailscale + keep-ip rules based on compose.access.yml
 if (env.ENABLE_TAILSCALE === "true") {
-  checkRequired("TAILSCALE_AUTHKEY", "required by tailscale service", (v) => (v.startsWith("tskey-") ? null : "must start with tskey-"));
+  checkRequired("TAILSCALE_AUTHKEY", "required by tailscale service", (v) =>
+    v.startsWith("tskey-") ? null : "must start with tskey-"
+  );
   checkRequired("TAILSCALE_TAILNET_DOMAIN", "required by dc.sh to render tailscale/serve.json", (v) =>
-    v && v !== "-" ? null : "must not be empty or '-'",
+    v && v !== "-" ? null : "must not be empty or '-'"
   );
   checkOptional("TAILSCALE_TAGS", "advertise tags", (v) =>
-    /^tag:[A-Za-z0-9][A-Za-z0-9_-]*(,tag:[A-Za-z0-9][A-Za-z0-9_-]*)*$/.test(v) ? null : "format must be tag:a,tag:b",
+    /^tag:[A-Za-z0-9][A-Za-z0-9_-]*(,tag:[A-Za-z0-9][A-Za-z0-9_-]*)*$/.test(v)
+      ? null
+      : "format must be tag:a,tag:b"
   );
 
   const keepIp = (env.TAILSCALE_KEEP_IP_ENABLE || "false").trim();
@@ -1133,7 +1128,7 @@ if (env.ENABLE_TAILSCALE === "true") {
 
   if (keepIp === "true") {
     checkRequired("TAILSCALE_KEEP_IP_FIREBASE_URL", "required when keep-ip enabled", (v) =>
-      isValidHttpsJsonUrl(v) ? null : "must be https URL ending with .json",
+      isValidHttpsJsonUrl(v) ? null : "must be https URL ending with .json"
     );
     checkOptional("TAILSCALE_KEEP_IP_CERTS_DIR", "certs dir path");
     checkOptional("TAILSCALE_KEEP_IP_INTERVAL_SEC", "backup interval seconds", (v) => {
@@ -1196,5 +1191,4 @@ if (errors.length) {
 
 console.log("\n✅ Env hợp lệ. Có thể triển khai.\n");
 ```
-
 <!-- END:EMBEDDED_FILES -->

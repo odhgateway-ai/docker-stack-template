@@ -10,7 +10,9 @@ function parseArgs(argv) {
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === "--output" || a === "-o") out.output = argv[++i];
+    else if (a.startsWith("--output=")) out.output = a.slice("--output=".length);
     else if (a === "--name" || a === "-n") out.name = argv[++i];
+    else if (a.startsWith("--name=")) out.name = a.slice("--name=".length);
     else if (a === "--force" || a === "-f") out.force = true;
     else if (a === "--help" || a === "-h") out.help = true;
   }

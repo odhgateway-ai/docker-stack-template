@@ -114,26 +114,68 @@ function normalizeTailnetDomain(value) {
   return v;
 }
 
+function isLikelyTailnetDomain(value) {
+  const clean = normalizeTailnetDomain(value).toLowerCase();
+  if (!clean) return false;
+  return isLikelyDomain(clean) && (clean.endsWith(".ts.net") || clean.endsWith(".beta.tailscale.net"));
+}
+
 function pickDomainFromSearchPaths(paths) {
   if (!Array.isArray(paths)) return "";
-  const clean = paths
-    .map((p) => (typeof p === "string" ? p.trim() : ""))
-    .filter(Boolean);
-  return (
-    clean.find((p) => p.toLowerCase().endsWith(".ts.net")) ||
-    clean.find((p) => isLikelyDomain(p)) ||
-    ""
-  );
+  const clean = paths.map((p) => (typeof p === "string" ? p.trim() : "")).filter(Boolean);
+  return clean.find((p) => p.toLowerCase().endsWith(".ts.net")) || clean.find((p) => isLikelyDomain(p)) || "";
 }
 
 function extractDomainFromDeviceName(name) {
   if (typeof name !== "string") return "";
-  const clean = name.trim().toLowerCase();
-  if (!clean || !clean.endsWith(".ts.net")) return "";
+  const clean = name.trim().toLowerCase().replace(/\.+$/, "");
+  if (!clean) return "";
+
+  if (isLikelyTailnetDomain(clean)) return clean;
+
   const parts = clean.split(".");
   if (parts.length < 3) return "";
   const suffix = parts.slice(1).join(".");
-  return isLikelyDomain(suffix) ? suffix : "";
+  return isLikelyTailnetDomain(suffix) ? suffix : "";
+}
+
+function inferDomainFromServeConfigText(serveText, projectName) {
+  if (typeof serveText !== "string" || !serveText.trim()) return "";
+
+  let parsed;
+  try {
+    parsed = JSON.parse(serveText);
+  } catch {
+    return "";
+  }
+
+  if (!parsed || typeof parsed !== "object" || !parsed.Web || typeof parsed.Web !== "object") {
+    return "";
+  }
+
+  const projectPrefix = normalizeHostLabel(projectName);
+  const domains = [];
+  const webHosts = Object.keys(parsed.Web);
+
+  webHosts.forEach((entry) => {
+    const label = normalizeHostLabel(entry);
+    if (!label) return;
+    const host = label.split(":")[0];
+    if (!host) return;
+
+    if (projectPrefix && host.startsWith(`${projectPrefix}.`)) {
+      const suffix = host.slice(projectPrefix.length + 1);
+      if (isLikelyTailnetDomain(suffix)) {
+        domains.push(suffix);
+        return;
+      }
+    }
+
+    const fromHost = extractDomainFromDeviceName(host);
+    if (fromHost) domains.push(fromHost);
+  });
+
+  return pickMostFrequent(domains);
 }
 
 function pickMostFrequent(items) {
@@ -168,14 +210,7 @@ function shortHostnameFromName(value) {
 function collectDeviceHostCandidates(device) {
   if (!device || typeof device !== "object") return [];
   const candidates = [];
-  const rawValues = [
-    device.hostname,
-    device.name,
-    device.computedName,
-    device.givenName,
-    device.machineName,
-    device.dnsName,
-  ];
+  const rawValues = [device.hostname, device.name, device.computedName, device.givenName, device.machineName, device.dnsName];
 
   rawValues.forEach((raw) => {
     const full = normalizeHostLabel(raw);
@@ -215,13 +250,7 @@ function askConfirm(question) {
   });
 }
 
-function apiRequestJson({
-  method,
-  endpointPath,
-  accessToken,
-  body,
-  extraHeaders,
-}) {
+function apiRequestJson({ method, endpointPath, accessToken, body, extraHeaders }) {
   return new Promise((resolve, reject) => {
     const payload = body === undefined ? "" : JSON.stringify(body);
     const headers = {
@@ -321,10 +350,7 @@ function mergeTagOwners(policyObject, requiredTags, defaultOwners) {
   }
 
   const next = { ...policyObject };
-  const currentOwners =
-    next.tagOwners && typeof next.tagOwners === "object" && !Array.isArray(next.tagOwners)
-      ? { ...next.tagOwners }
-      : {};
+  const currentOwners = next.tagOwners && typeof next.tagOwners === "object" && !Array.isArray(next.tagOwners) ? { ...next.tagOwners } : {};
 
   const addedTags = [];
   for (const tag of requiredTags) {
@@ -599,8 +625,8 @@ async function main() {
     }
   }
 
-  if (existingTailnetDomain && !isLikelyDomain(existingTailnetDomain)) {
-    warnings.push(`TAILSCALE_TAILNET_DOMAIN may be invalid: ${existingTailnetDomainRaw}`);
+  if (existingTailnetDomain && !isLikelyTailnetDomain(existingTailnetDomain)) {
+    warnings.push(`TAILSCALE_TAILNET_DOMAIN may be invalid (expected *.ts.net): ${existingTailnetDomainRaw}`);
   }
   if (!removeHostnameMode && !isLikelyHttpUrl(serveProxy)) {
     errors.push(`TAILSCALE_SERVE_PROXY is invalid: ${serveProxy}`);
@@ -755,8 +781,7 @@ async function main() {
           continue;
         }
 
-        const apiMessage =
-          deleteRes.body && typeof deleteRes.body.message === "string" ? ` ${deleteRes.body.message}` : "";
+        const apiMessage = deleteRes.body && typeof deleteRes.body.message === "string" ? ` ${deleteRes.body.message}` : "";
         removeErrors.push(`Failed to remove ${deviceLabel}: HTTP ${deleteRes.status}.${apiMessage}`);
       } catch (err) {
         removeErrors.push(`Failed to remove ${deviceLabel}: ${err.message}`);
@@ -816,11 +841,23 @@ async function main() {
       accessToken,
     });
 
-    if (dnsRes.status === 200 && dnsRes.body && Array.isArray(dnsRes.body.searchPaths)) {
-      const candidate = pickDomainFromSearchPaths(dnsRes.body.searchPaths);
-      if (candidate) {
-        apiTailnetDomain = candidate;
-        apiTailnetDomainSource = "dns/searchpaths";
+    if (dnsRes.status === 200) {
+      const searchPaths = Array.isArray(dnsRes.body && dnsRes.body.searchPaths)
+        ? dnsRes.body.searchPaths
+        : Array.isArray(dnsRes.body)
+          ? dnsRes.body
+          : null;
+
+      if (!searchPaths) {
+        warnings.push("dns/searchpaths returned unexpected response shape (missing searchPaths array).");
+      } else {
+        const candidate = pickDomainFromSearchPaths(searchPaths);
+        if (candidate) {
+          apiTailnetDomain = candidate;
+          apiTailnetDomainSource = "dns/searchpaths";
+        } else {
+          warnings.push("dns/searchpaths returned no tailnet domain (empty list or no *.ts.net entry).");
+        }
       }
     } else if (dnsRes.status === 401) {
       warnings.push("Cannot read dns/searchpaths (401). Missing or invalid DNS read scope.");
@@ -843,10 +880,21 @@ async function main() {
       });
 
       if (dnsCfgRes.status === 200 && dnsCfgRes.body && typeof dnsCfgRes.body === "object") {
-        const candidate = pickDomainFromSearchPaths(dnsCfgRes.body.searchPaths);
+        const cfgSearchPaths = Array.isArray(dnsCfgRes.body.searchPaths)
+          ? dnsCfgRes.body.searchPaths
+          : Array.isArray(dnsCfgRes.body.preferences && dnsCfgRes.body.preferences.searchPaths)
+            ? dnsCfgRes.body.preferences.searchPaths
+            : Array.isArray(dnsCfgRes.body.configuration && dnsCfgRes.body.configuration.searchPaths)
+              ? dnsCfgRes.body.configuration.searchPaths
+              : null;
+        const candidate = pickDomainFromSearchPaths(cfgSearchPaths);
+
         if (candidate) {
           apiTailnetDomain = candidate;
           apiTailnetDomainSource = "dns/configuration";
+        } else {
+          const topLevelKeys = Object.keys(dnsCfgRes.body);
+          warnings.push(`dns/configuration did not include a usable tailnet search path (keys: ${topLevelKeys.join(", ") || "(none)"}).`);
         }
       } else if (dnsCfgRes.status === 401) {
         warnings.push("Cannot read dns/configuration (401). Missing or invalid DNS read scope.");
@@ -869,14 +917,34 @@ async function main() {
         accessToken,
       });
 
-      if (devicesRes.status === 200 && devicesRes.body && Array.isArray(devicesRes.body.devices)) {
-        const domains = devicesRes.body.devices
-          .map((d) => extractDomainFromDeviceName(d && d.name))
+      if (devicesRes.status === 200) {
+        const apiDevices = Array.isArray(devicesRes.body && devicesRes.body.devices)
+          ? devicesRes.body.devices
+          : Array.isArray(devicesRes.body)
+            ? devicesRes.body
+            : null;
+
+        if (!apiDevices) {
+          warnings.push("devices endpoint returned unexpected response shape (missing devices array).");
+          // Skip candidate inference on malformed shape.
+        } else if (!apiDevices.length) {
+          warnings.push("devices endpoint returned 0 devices; cannot infer domain from device names.");
+        }
+
+        const domains = (apiDevices || [])
+          .map((d) => [
+            extractDomainFromDeviceName(d && d.name),
+            extractDomainFromDeviceName(d && d.dnsName),
+            extractDomainFromDeviceName(d && d.hostname),
+          ])
+          .flat()
           .filter(Boolean);
         const candidate = pickMostFrequent(domains);
         if (candidate) {
           apiTailnetDomain = candidate;
-          apiTailnetDomainSource = "devices.name";
+          apiTailnetDomainSource = "devices.name/dnsName";
+        } else if (apiDevices && apiDevices.length) {
+          warnings.push("devices endpoint had entries, but no device name exposed a tailnet domain.");
         }
       } else if (devicesRes.status === 401) {
         warnings.push("Cannot read devices (401). Missing or invalid devices:core:read scope.");
@@ -949,10 +1017,50 @@ async function main() {
     }
   }
 
+  if (!apiTailnetDomain && isLikelyTailnetDomain(tailnet)) {
+    apiTailnetDomain = normalizeTailnetDomain(tailnet);
+    apiTailnetDomainSource = "TAILSCALE_TS_TAILNET";
+    warnings.push(`Using TAILSCALE_TS_TAILNET as tailnet domain fallback: ${apiTailnetDomain}.`);
+  }
+
   if (!apiTailnetDomain) {
-    errors.push(
-      "Could not infer TAILSCALE_TAILNET_DOMAIN from Tailscale API (tried: dns/searchpaths, dns/configuration, devices).",
-    );
+    const servePathForInfer = path.resolve(process.cwd(), serveFilePathRaw);
+    if (fs.existsSync(servePathForInfer)) {
+      try {
+        const serveText = fs.readFileSync(servePathForInfer, "utf-8");
+        const serveDomain = inferDomainFromServeConfigText(serveText, projectName);
+        if (serveDomain) {
+          if (!existingTailnetDomain || !isLikelyTailnetDomain(existingTailnetDomain)) {
+            apiTailnetDomain = serveDomain;
+            apiTailnetDomainSource = "serve.json";
+            warnings.push(`Using tailnet domain inferred from ${serveFilePathRaw}: ${serveDomain}.`);
+          } else if (serveDomain !== existingTailnetDomain) {
+            apiTailnetDomain = serveDomain;
+            apiTailnetDomainSource = "serve.json";
+            warnings.push(
+              `TAILSCALE_TAILNET_DOMAIN differs from ${serveFilePathRaw} (env=${existingTailnetDomain}, serve=${serveDomain}). Using serve value.`,
+            );
+          } else {
+            apiTailnetDomain = existingTailnetDomain;
+            apiTailnetDomainSource = "serve.json";
+          }
+        }
+      } catch (err) {
+        warnings.push(`Cannot read ${serveFilePathRaw} for tailnet domain fallback: ${err.message}`);
+      }
+    }
+  }
+
+  if (!apiTailnetDomain) {
+    if (existingTailnetDomain && isLikelyTailnetDomain(existingTailnetDomain)) {
+      apiTailnetDomain = existingTailnetDomain;
+      apiTailnetDomainSource = "env:TAILSCALE_TAILNET_DOMAIN";
+      warnings.push(`Could not infer TAILSCALE_TAILNET_DOMAIN from Tailscale API; using existing env value (unverified): ${existingTailnetDomain}.`);
+    } else {
+      errors.push(
+        "Could not infer TAILSCALE_TAILNET_DOMAIN from Tailscale API (tried: dns/searchpaths, dns/configuration, devices). Set TAILSCALE_TAILNET_DOMAIN manually from Tailscale Admin DNS settings.",
+      );
+    }
   }
 
   if (errors.length) {
@@ -999,6 +1107,20 @@ async function main() {
   const hasEnvUpdate = envUpdates.length > 0;
   const hasEnvFileUpdate = hasEnvFile && hasEnvUpdate;
   const hasHttpsUpdate = shouldEnableHttps;
+
+  if (apiTailnetDomainSource === "serve.json" && !hasEnvUpdate) {
+    const noisyPrefixes = [
+      "dns/searchpaths returned no tailnet domain",
+      "dns/configuration did not include a usable tailnet search path",
+      "devices endpoint returned 0 devices",
+    ];
+    for (let i = warnings.length - 1; i >= 0; i -= 1) {
+      const msg = warnings[i] || "";
+      if (noisyPrefixes.some((prefix) => msg.startsWith(prefix))) {
+        warnings.splice(i, 1);
+      }
+    }
+  }
 
   if (!hasEnvFile && hasEnvUpdate) {
     warnings.push("TAILSCALE_TAILNET_DOMAIN was inferred, but no .env path was provided (skipping file update).");
