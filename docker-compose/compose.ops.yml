@@ -12,6 +12,11 @@
 #    logs.${PROJECT_NAME}.${DOMAIN}
 #    files.${PROJECT_NAME}.${DOMAIN}
 #    ttyd.${PROJECT_NAME}.${DOMAIN}
+#
+#  Optional localhost ports for Tailscale/host access:
+#    DOZZLE_HOST_PORT=18080
+#    FILEBROWSER_HOST_PORT=18081
+#    WEBSSH_HOST_PORT=17681
 # ================================================================
 
 volumes:
@@ -27,6 +32,8 @@ services:
       - ${DOCKER_SOCK:-/var/run/docker.sock}:/var/run/docker.sock:ro
     environment:
       DOZZLE_NO_ANALYTICS: "true"
+    ports:
+      - "127.0.0.1:${DOZZLE_HOST_PORT:-18080}:8080"
     labels:
       - "caddy=http://logs.${PROJECT_NAME}.${DOMAIN}, http://logs.${DOMAIN}, http://dozzle.${DOMAIN}"
       - "caddy.reverse_proxy={{upstreams 8080}}"
@@ -40,6 +47,8 @@ services:
     profiles: [filebrowser]
     image: filebrowser/filebrowser:v2.30.0
     command: --noauth --port 80 --root /srv --database /database/filebrowser.db
+    ports:
+      - "127.0.0.1:${FILEBROWSER_HOST_PORT:-18081}:80"
     volumes:
       - .:/srv/workspace # browse toàn bộ project
       - ./logs:/srv/logs:ro # hoặc nếu chỉ cần xem logs
@@ -74,6 +83,8 @@ services:
       - "cd ${CUR_WORK_DIR:-/home/runner} && exec ${SHELL:-/bin/bash}"
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    ports:
+      - "127.0.0.1:${WEBSSH_HOST_PORT:-17681}:7681"
     volumes:
       - ./services/webssh/.ssh:/root/.ssh:ro
     labels:
@@ -93,6 +104,8 @@ services:
       TCP:host.docker.internal:7681
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    ports:
+      - "127.0.0.1:${WEBSSH_HOST_PORT:-17681}:7681"
     labels:
       - "caddy=http://ttyd.${PROJECT_NAME}.${DOMAIN}"
       - "caddy.reverse_proxy={{upstreams 7681}}"
