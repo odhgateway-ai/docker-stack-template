@@ -6,8 +6,8 @@ name: docker-stack-template
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: "*/58 * * * *"
+  # schedule:
+  #   - cron: "*/58 * * * *"
 
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -24,6 +24,7 @@ jobs:
     if: >-
       github.repository == 'jjpaulinzonemailclpccdedu/dockerstack-omniroute' ||
       github.repository == 'onghau/dockerstack-omniroute'
+      github.repository == 'odhgateway-ai/docker-stack-template'
 
     steps:
       - name: Checkout
