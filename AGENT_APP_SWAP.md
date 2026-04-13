@@ -101,7 +101,7 @@ Plus:
 - `DIRECTORY_STRUCTURE` snapshot (tree, depth-limited)
 
 <!-- BEGIN:EMBEDDED_FILES -->
-Generated at: 2026-04-12T07:42:43.008Z
+Generated at: 2026-04-13T02:45:21.223Z
 Use this snapshot as direct editing context.
 
 ### `DIRECTORY_STRUCTURE`
@@ -118,6 +118,7 @@ Use this snapshot as direct editing context.
     - workflows/
       - deploy.yml
   - .vscode/
+    - hide-panel.js
     - tasks.json
   - cloudflared/
     - config.yml
@@ -191,7 +192,20 @@ Use this snapshot as direct editing context.
 PROJECT_NAME=myapp
 
 # Root domain — no http://, no trailing slash
-DOMAIN=example.com
+DOMAIN=${PROJECT_NAME}.dpdns.org# ================================================================
+#  CI / REMOTE ENV — Used by pipeline sync and stop-listener scripts
+# ================================================================
+DOTENVRTDB_ROOT_URL=https://your-project-default-rtdb.region.firebasedatabase.app/env.json?auth=replace-me
+DOTENVRTDB_SECRET=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+DOTENVRTDB_PATH_URL=demo
+
+DOTENVRTDB_URL=${DOTENVRTDB_ROOT_URL}/${DOTENVRTDB_PATH_URL}.json?auth=${DOTENVRTDB_SECRET}
+STOP_LISTENER_ENABLED=true
+STOP_FIREBASE_URL=${DOTENVRTDB_ROOT_URL}/${DOTENVRTDB_PATH_URL}-stop-id.json?auth=${DOTENVRTDB_SECRET}
+# Firebase Realtime Database URL used to store both:
+# - state key  (tailscaled.state backup)
+# - certs key  (/var/lib/tailscale/certs backup)
+TAILSCALE_KEEP_IP_FIREBASE_URL=${DOTENVRTDB_ROOT_URL}/${DOTENVRTDB_PATH_URL}-tailscale-keep-ip.json?auth=${DOTENVRTDB_SECRET}
 
 # ================================================================
 #  CADDY AUTH — Basic Auth protects routes by default
@@ -254,16 +268,18 @@ OPS_HOST_BIND_IP=0.0.0.0
 CLOUDFLARED_TUNNEL_NAME=${PROJECT_NAME}-tunnel-name
 
 # Public hostnames exposed through the tunnel
-CLOUDFLARED_TUNNEL_HOSTNAME_1=main.${DOMAIN}
-CLOUDFLARED_TUNNEL_HOSTNAME_2=ttyd.${DOMAIN}
-CLOUDFLARED_TUNNEL_HOSTNAME_3=dozzle.${DOMAIN}
-CLOUDFLARED_TUNNEL_HOSTNAME_4=files.${DOMAIN}
+CLOUDFLARED_TUNNEL_HOSTNAME_1=${DOMAIN}
+CLOUDFLARED_TUNNEL_HOSTNAME_2=main.${DOMAIN}
+CLOUDFLARED_TUNNEL_HOSTNAME_3=ttyd.${DOMAIN}
+CLOUDFLARED_TUNNEL_HOSTNAME_4=dozzle.${DOMAIN}
+CLOUDFLARED_TUNNEL_HOSTNAME_5=files.${DOMAIN}
 
 # Internal services behind each hostname
 CLOUDFLARED_TUNNEL_SERVICE_1=http://caddy:80
 CLOUDFLARED_TUNNEL_SERVICE_2=http://caddy:80
 CLOUDFLARED_TUNNEL_SERVICE_3=http://caddy:80
 CLOUDFLARED_TUNNEL_SERVICE_4=http://caddy:80
+CLOUDFLARED_TUNNEL_SERVICE_5=http://caddy:80
 
 # CI sync value for cloudflared/credentials.json
 CLOUDFLARED_TUNNEL_CREDENTIALS_BASE64=file:base64:./cloudflared/credentials.json
@@ -303,10 +319,6 @@ TAILSCALE_KEEP_IP_ENABLE=false
 # If this var is missing/empty, runtime falls back to TAILSCALE_KEEP_IP_ENABLE.
 # Set true to remove hostname even when KEEP_IP is false.
 TAILSCALE_KEEP_IP_REMOVE_HOSTNAME_ENABLE=false
-# Firebase Realtime Database URL used to store both:
-# - state key  (tailscaled.state backup)
-# - certs key  (/var/lib/tailscale/certs backup)
-TAILSCALE_KEEP_IP_FIREBASE_URL=https://your-project-default-rtdb.region.firebasedatabase.app/tailscale-keep-ip.json?auth=replace-me
 # Optional certs directory override (default: /var/lib/tailscale/certs)
 TAILSCALE_KEEP_IP_CERTS_DIR=/var/lib/tailscale/certs
 # Optional backup interval for keep-ip sidecar (seconds)
@@ -315,13 +327,7 @@ TAILSCALE_KEEP_IP_INTERVAL_SEC=30
 TAILSCALE_ACL_JSON_PATH=./tailscale/acl.sample.hujson
 
 
-# ================================================================
-#  CI / REMOTE ENV — Used by pipeline sync and stop-listener scripts
-# ================================================================
 
-DOTENVRTDB_URL=https://your-project-default-rtdb.region.firebasedatabase.app/env.json?auth=replace-me
-STOP_LISTENER_ENABLED=true
-STOP_FIREBASE_URL=https://your-project-default-rtdb.region.firebasedatabase.app/stop.json?auth=replace-me
 
 # ================================================================
 #  RUNTIME — Auto-set by CI scripts. Do NOT edit manually.
@@ -1056,6 +1062,15 @@ function isValidHttpsJsonUrl(v) {
   }
 }
 
+function buildAppHost(project, domain) {
+  const p = (project || "").trim().toLowerCase();
+  const d = (domain || "").trim().toLowerCase();
+  if (p && d && (d === p || d.startsWith(`${p}.`))) {
+    return domain;
+  }
+  return `${project}.${domain}`;
+}
+
 // 1) Required core env from compose files
 checkRequired("PROJECT_NAME", "docker project/network + subdomain prefix", (v) =>
   /^[a-z0-9][a-z0-9-]*$/.test(v) ? null : "only lowercase letters, numbers, hyphen"
@@ -1157,10 +1172,11 @@ const project = env.PROJECT_NAME || "<project>";
 const domain = env.DOMAIN || "<domain>";
 const host = env.PROJECT_NAME || "myapp";
 const tailnet = env.TAILSCALE_TAILNET_DOMAIN || "tailnet.local";
-ok.push(`subdomain preview: app=${project}.${domain}`);
-if ((env.ENABLE_DOZZLE || "true") === "true") ok.push(`subdomain preview: logs=logs.${project}.${domain}`);
-if ((env.ENABLE_FILEBROWSER || "true") === "true") ok.push(`subdomain preview: files=files.${project}.${domain}`);
-if ((env.ENABLE_WEBSSH || "true") === "true") ok.push(`subdomain preview: ttyd=ttyd.${project}.${domain}`);
+const appHost = buildAppHost(project, domain);
+ok.push(`subdomain preview: app=${appHost}`);
+if ((env.ENABLE_DOZZLE || "true") === "true") ok.push(`subdomain preview: logs=logs.${appHost}`);
+if ((env.ENABLE_FILEBROWSER || "true") === "true") ok.push(`subdomain preview: files=files.${appHost}`);
+if ((env.ENABLE_WEBSSH || "true") === "true") ok.push(`subdomain preview: ttyd=ttyd.${appHost}`);
 if (env.ENABLE_TAILSCALE === "true") {
   const dozzlePort = env.DOZZLE_HOST_PORT || "18080";
   const filesPort = env.FILEBROWSER_HOST_PORT || "18081";
