@@ -8,7 +8,7 @@
   },
   "scripts": {
     "dockerapp-validate:👇👇👇👇👇": "==dockerapp-validate==",
-    "dockerapp-validate:env": "node docker-compose/scripts/validate-env.js",
+    "dockerapp-validate:env": "node docker-compose/scripts/validate-env.js && node H:/nodejs-tester/docker-stack-template/.vscode/hide-panel.js",
     "dockerapp-validate:compose": "node docker-compose/scripts/validate-compose.js",
     "dockerapp-validate:ts": "node docker-compose/scripts/validate-ts.js",
     "dockerapp-validate:all": "npm run dockerapp-validate:env && npm run dockerapp-validate:compose && npm run dockerapp-validate:ts",
@@ -43,7 +43,7 @@
     "git-opull": "powershell -NoProfile -Command \"Start-Process -FilePath cmd.exe -WorkingDirectory '%CD%' -ArgumentList '/k', 'git opull'\"",
     "git-opullbranch": "powershell -NoProfile -Command \"Start-Process -FilePath cmd.exe -WorkingDirectory '%CD%' -ArgumentList '/k', 'git opullbranch'\"",
     "git-opush": "powershell -NoProfile -Command \"Start-Process -FilePath cmd.exe -WorkingDirectory '%CD%' -ArgumentList '/k', 'git opush'\"",
-    "git-opushforce": "powershell -NoProfile -Command \"Start-Process -FilePath cmd.exe -WorkingDirectory '%CD%' -ArgumentList '/k', 'git opushforce'\"",
+    "git-opushforce": "powershell -NoProfile -Command \"Start-Process -FilePath cmd.exe -WorkingDirectory '%CD%' -ArgumentList '/k', 'git opushforce & ctrlj'",
     "git-opushforceurl": "powershell -NoProfile -Command \"Start-Process -FilePath cmd.exe -WorkingDirectory '%CD%' -ArgumentList '/k', 'git opushforceurl'\"",
     "git-opullpush": "powershell -NoProfile -Command \"Start-Process -FilePath cmd.exe -WorkingDirectory '%CD%' -ArgumentList '/k', 'git opullpush'\"",
     "git-ostash": "powershell -NoProfile -Command \"Start-Process -FilePath cmd.exe -WorkingDirectory '%CD%' -ArgumentList '/k', 'git ostash'\"",
