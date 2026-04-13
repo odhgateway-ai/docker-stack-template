@@ -23,7 +23,7 @@ jobs:
       actions: write
     if: >-
       github.repository == 'jjpaulinzonemailclpccdedu/dockerstack-omniroute' ||
-      github.repository == 'onghau/dockerstack-omniroute'
+      github.repository == 'onghau/dockerstack-omniroute' ||
       github.repository == 'odhgateway-ai/docker-stack-template'
 
     steps:
