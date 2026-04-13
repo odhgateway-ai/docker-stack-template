@@ -15,6 +15,7 @@
     "agent-app-swap:sync": "node scripts/sync-agent-app-swap.js & ctrlj",
     "tailscale-init": "node tailscale/tailscale-init.js .env",
     "tailscale-remove-hostname": "node tailscale/tailscale-init.js .env --remove-hostname --yes",
+    "tailscale-watchdog": "node tailscale/tailscale-watchdog.js",
     "dockerapp-gen:👇👇👇👇👇": "==dockerapp-gen==",
     "dockerapp-gen:caddy-hash": "docker run --rm caddy:alpine caddy hash-password --plaintext",
     "dockerapp-exec:👇👇👇👇👇": "==dockerapp-exec==",

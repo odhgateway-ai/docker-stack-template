@@ -71,6 +71,7 @@ services:
     environment:
       TS_AUTHKEY: "${TAILSCALE_AUTHKEY:-}"
       TS_USERSPACE: "false"
+      TS_SOCKET: "${TAILSCALE_SOCKET:-/tmp/tailscaled.sock}"
       TS_SERVE_CONFIG: /config/serve/serve.json
       TS_EXTRA_ARGS: >-
         --advertise-tags=${TAILSCALE_TAGS:-tag:container}
@@ -80,6 +81,7 @@ services:
     volumes:
       - ${DOCKER_VOLUMES_ROOT:-./.docker-volumes}/tailscale/var-lib:/var/lib/tailscale
       - ./tailscale:/config/serve
+      - tailscale-socket:/tmp
       - /dev/net/tun:/dev/net/tun
     cap_add:
       - NET_ADMIN
@@ -98,6 +100,7 @@ services:
     environment:
       TAILSCALE_AUTHKEY: "${TAILSCALE_AUTHKEY:-}"
       TS_USERSPACE: "true"
+      TS_SOCKET: "${TAILSCALE_SOCKET:-/tmp/tailscaled.sock}"
       TS_SERVE_CONFIG: /config/serve/serve.json
       TS_EXTRA_ARGS: >-
         --advertise-tags=${TAILSCALE_TAGS:-tag:container}
@@ -106,6 +109,61 @@ services:
     volumes:
       - ${DOCKER_VOLUMES_ROOT:-./.docker-volumes}/tailscale/var-lib:/var/lib/tailscale
       - ./tailscale:/config/serve
+      - tailscale-socket:/tmp
+    networks: [app_net]
+    restart: unless-stopped
+
+  # ── Watchdog (Linux profile): monitor tailscale status/log only ───────
+  tailscale-watchdog-linux:
+    profiles: [tailscale-linux]
+    image: node:20-alpine
+    depends_on:
+      tailscale-linux:
+        condition: service_started
+    command: ["node", "/workspace/tailscale/tailscale-watchdog.js"]
+    environment:
+      TAILSCALE_WATCHDOG_MODE: "${TAILSCALE_WATCHDOG_MODE:-monitor}"
+      TAILSCALE_WATCHDOG_INTERVAL_SEC: "${TAILSCALE_WATCHDOG_INTERVAL_SEC:-30}"
+      TAILSCALE_WATCHDOG_ALERT_EVERY: "${TAILSCALE_WATCHDOG_ALERT_EVERY:-5}"
+      TAILSCALE_WATCHDOG_LOG_OK_EVERY: "${TAILSCALE_WATCHDOG_LOG_OK_EVERY:-10}"
+      TAILSCALE_WATCHDOG_NETCHECK: "${TAILSCALE_WATCHDOG_NETCHECK:-true}"
+      # Sidecar cannot safely inspect tailscale container resolv.conf; use health/netcheck instead.
+      TAILSCALE_WATCHDOG_DNS_CHECK: "${TAILSCALE_WATCHDOG_DNS_CHECK:-false}"
+      TAILSCALE_WATCHDOG_AUTO_RECONNECT: "false"
+      TAILSCALE_WATCHDOG_DNS_FIX: "false"
+      TAILSCALE_SOCKET: "${TAILSCALE_SOCKET:-/tmp/tailscaled.sock}"
+      PROJECT_NAME: "${PROJECT_NAME:-myapp}"
+    user: "0:0"
+    volumes:
+      - ./tailscale:/workspace/tailscale:ro
+      - tailscale-socket:/tmp
+    networks: [app_net]
+    restart: unless-stopped
+
+  # ── Watchdog (Windows profile): monitor tailscale status/log only ─────
+  tailscale-watchdog-windows:
+    profiles: [tailscale-windows]
+    image: node:20-alpine
+    depends_on:
+      tailscale-windows:
+        condition: service_started
+    command: ["node", "/workspace/tailscale/tailscale-watchdog.js"]
+    environment:
+      TAILSCALE_WATCHDOG_MODE: "${TAILSCALE_WATCHDOG_MODE:-monitor}"
+      TAILSCALE_WATCHDOG_INTERVAL_SEC: "${TAILSCALE_WATCHDOG_INTERVAL_SEC:-30}"
+      TAILSCALE_WATCHDOG_ALERT_EVERY: "${TAILSCALE_WATCHDOG_ALERT_EVERY:-5}"
+      TAILSCALE_WATCHDOG_LOG_OK_EVERY: "${TAILSCALE_WATCHDOG_LOG_OK_EVERY:-10}"
+      TAILSCALE_WATCHDOG_NETCHECK: "${TAILSCALE_WATCHDOG_NETCHECK:-true}"
+      # Sidecar cannot safely inspect tailscale container resolv.conf; use health/netcheck instead.
+      TAILSCALE_WATCHDOG_DNS_CHECK: "${TAILSCALE_WATCHDOG_DNS_CHECK:-false}"
+      TAILSCALE_WATCHDOG_AUTO_RECONNECT: "false"
+      TAILSCALE_WATCHDOG_DNS_FIX: "false"
+      TAILSCALE_SOCKET: "${TAILSCALE_SOCKET:-/tmp/tailscaled.sock}"
+      PROJECT_NAME: "${PROJECT_NAME:-myapp}"
+    user: "0:0"
+    volumes:
+      - ./tailscale:/workspace/tailscale:ro
+      - tailscale-socket:/tmp
     networks: [app_net]
     restart: unless-stopped
 
@@ -154,3 +212,6 @@ services:
       - ./tailscale:/workspace/tailscale:ro
     networks: [app_net]
     restart: unless-stopped
+
+volumes:
+  tailscale-socket:
