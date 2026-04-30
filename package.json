@@ -61,6 +61,7 @@
     "stack:clone-dockerstack-s3-proxy": "node scripts/clone-stack.js --output H:/nodejs-tester/dockerstack-s3-proxy --name dockerstack-s3-proxy --force",
     "stack:clone-dockerstack-pocketbase": "node scripts/clone-stack.js --output H:/nodejs-tester/dockerstack-pocketbase --name dockerstack-pocketbase --force",
     "stack:rtdbmanager": "node scripts/clone-stack.js --output H:/nodejs-tester/rtdbmanager --name rtdbmanager --force",
+    "stack:rclonemanager-deploy": "node scripts/clone-stack.js --output H:/nodejs-tester/rclonemanager-deploy --name rclonemanager --force",
     "env-cloudflared-create": "ctrlj&powershell -NoProfile -Command \"Start-Process -FilePath cmd.exe -WorkingDirectory '%CD%' -ArgumentList '/k', 'dotenvrtdb -e .env -- ocli cloudflared'\"",
     "tailscale-init": "node tailscale/tailscale-init.js .env",
     "ocli-gh": "ctrlj&powershell -NoProfile -Command \"Start-Process -FilePath cmd.exe -WorkingDirectory '%CD%' -ArgumentList '/k', 'dotenvrtdb -e .env -- ocli gh'\"",
