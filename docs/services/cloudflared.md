@@ -21,6 +21,7 @@
 2. Lấy credentials file.
 3. Cấu hình ingress hostnames.
 4. Tạo/kiểm tra DNS records cho các hostname app/ops.
+5. Nếu bật Deploy Code, thêm hostname `deploy.${DOMAIN}` trỏ về `http://caddy:80`.
 
 ## Lỗi thường gặp
 - Sai tunnel ID hoặc credentials không khớp -> tunnel không connect.

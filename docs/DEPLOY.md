@@ -27,6 +27,11 @@ Tài liệu triển khai chuẩn theo **codebase hiện tại**.
 - `tailscale-linux`, `tailscale-windows`, keep-ip prepare/backup loops.
 - Bật/tắt qua `ENABLE_TAILSCALE`.
 
+### Deploy Code
+- `docker-compose/compose.deploy.yml`
+- `deploy-code` sidecar để Git/ZIP deploy và điều khiển service/container theo allowlist.
+- Mặc định tắt, chỉ bật qua `DOCKER_DEPLOY_CODE_ENABLED=true`.
+
 ### Apps
 - `compose.apps.yml`
 - Service `app` mặc định build từ `services/app`.
@@ -73,6 +78,10 @@ Nếu `TAILSCALE_KEEP_IP_REMOVE_HOSTNAME_ENABLE=true`, bắt buộc thêm:
 - `DOZZLE_HOST_PORT` (default `18080`): cổng localhost cho Dozzle.
 - `FILEBROWSER_HOST_PORT` (default `18081`): cổng localhost cho Filebrowser.
 - `WEBSSH_HOST_PORT` (default `17681`): cổng localhost cho WebSSH.
+- `DOCKER_DEPLOY_CODE_ENABLED`: bật sidecar Deploy Code.
+- `DOCKER_DEPLOY_CODE_HOST_PORT` (default `15399`): cổng host/Tailnet cho Deploy Code.
+- `DOCKER_DEPLOY_CODE_CADDY_HOSTS`: hostname public cho UI/API Deploy Code, mặc định `deploy.${DOMAIN}`.
+- `DOCKER_DEPLOY_CODE_API_TOKEN`: token cho UI/API khi `DOCKER_DEPLOY_CODE_REQUIRE_TOKEN=true`.
 
 ## 5) Cấu hình Cloudflare Tunnel (chi tiết kỹ thuật)
 
@@ -96,6 +105,7 @@ Routing dựa labels trong compose:
 - Dozzle: `logs.${PROJECT_NAME}.${DOMAIN}`
 - Filebrowser: `files.${PROJECT_NAME}.${DOMAIN}`
 - WebSSH: `ttyd.${PROJECT_NAME}.${DOMAIN}`
+- Deploy Code: `deploy.${DOMAIN}` (khi `DOCKER_DEPLOY_CODE_ENABLED=true`)
 
 Auth cơ bản dùng:
 
@@ -119,6 +129,7 @@ Khi `ENABLE_TAILSCALE=true`, bạn có thể dùng hostname tailnet của node:
 - `http://${PROJECT_NAME}.${TAILSCALE_TAILNET_DOMAIN}:${DOZZLE_HOST_PORT:-18080}` → Dozzle
 - `http://${PROJECT_NAME}.${TAILSCALE_TAILNET_DOMAIN}:${FILEBROWSER_HOST_PORT:-18081}` → Filebrowser
 - `http://${PROJECT_NAME}.${TAILSCALE_TAILNET_DOMAIN}:${WEBSSH_HOST_PORT:-17681}` → WebSSH
+- `http://${PROJECT_NAME_TAILSCALE}.${TAILSCALE_TAILNET_DOMAIN}:${DOCKER_DEPLOY_CODE_HOST_PORT:-15399}` → Deploy Code (nếu bật)
 
 Ghi chú:
 - Các cổng này bind `127.0.0.1` trên host; truy cập qua tailnet phụ thuộc cách bạn chạy Tailscale (container host-network Linux hay host-level trên Windows/WSL).
@@ -140,3 +151,4 @@ Ghi chú:
 - `docs/services/filebrowser.md`
 - `docs/services/webssh.md`
 - `docs/services/tailscale.md`
+- `docs/services/deploy-code.md`

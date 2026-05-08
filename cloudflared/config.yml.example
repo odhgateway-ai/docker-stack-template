@@ -30,6 +30,11 @@ ingress:
   - hostname: files.example.com
     service: http://caddy:80
 
+  # ── Deploy Code: optional self-deploy UI/API ───────────────────
+  # Enabled when DOCKER_DEPLOY_CODE_ENABLED=true
+  - hostname: deploy.example.com
+    service: http://caddy:80
+
   # ── WebSSH: browser terminal ──────────────────────────────────
   # Enabled when ENABLE_WEBSSH=true
   # ⚠️  Protect with Cloudflare Access or Tailscale for production!

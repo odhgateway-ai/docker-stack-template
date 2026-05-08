@@ -85,7 +85,10 @@ prepare_docker_volume_dirs() {
     "$volume_root/caddy/data" \
     "$volume_root/caddy/config" \
     "$volume_root/filebrowser/database" \
-    "$volume_root/tailscale/var-lib"
+    "$volume_root/tailscale/var-lib" \
+    "$volume_root/deploy-code/logs" \
+    "$volume_root/deploy-code/backups" \
+    "$volume_root/deploy-code/tmp"
 
   if [ "${DC_VERBOSE:-0}" = "1" ]; then
     echo "  DATA_ROOT : $volume_root"
@@ -103,6 +106,13 @@ fi
 if [ -n "${TAILSCALE_TAGS:-}" ]; then
   TAILSCALE_TAGS="$(printf '%s' "$TAILSCALE_TAGS" | tr -d '[:space:]')"
   export TAILSCALE_TAGS
+fi
+
+# Default deploy-code public hostname. Override in .env when a different
+# Cloudflare/Caddy hostname is required.
+if [ -z "${DOCKER_DEPLOY_CODE_CADDY_HOSTS:-}" ]; then
+  DOCKER_DEPLOY_CODE_CADDY_HOSTS="deploy.${DOMAIN:-localhost}"
+  export DOCKER_DEPLOY_CODE_CADDY_HOSTS
 fi
 
 should_render_tailscale_serve() {
@@ -199,6 +209,10 @@ if [ "${ENABLE_TAILSCALE:-false}" = "true" ]; then
   fi
 fi
 
+if [ "${DOCKER_DEPLOY_CODE_ENABLED:-false}" = "true" ]; then
+  PROFILE_ARGS+=(--profile deploy-code)
+fi
+
 if [ "${ENABLE_TAILSCALE:-false}" = "true" ] && should_render_tailscale_serve "${1:-}"; then
   render_tailscale_serve_config
 fi
@@ -210,6 +224,7 @@ FILES=(
   -f "$ROOT_DIR/docker-compose/compose.core.yml"
   -f "$ROOT_DIR/docker-compose/compose.ops.yml"
   -f "$ROOT_DIR/docker-compose/compose.access.yml"
+  -f "$ROOT_DIR/docker-compose/compose.deploy.yml"
   -f "$ROOT_DIR/compose.apps.yml"
 )
 

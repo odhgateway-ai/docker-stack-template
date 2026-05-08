@@ -5,12 +5,14 @@ Template triển khai nhanh 1 ứng dụng container (app chính) kèm đầy đ
 - **Core**: Caddy + Cloudflare Tunnel.
 - **Ops**: Dozzle, Filebrowser, WebSSH (có thể truy cập qua domain hoặc Tailscale hostname:port).
 - **Access**: Tailscale + Keep-IP workflow.
+- **Deploy Code**: sidecar self-deploy/app-control, mặc định tắt và chỉ bật khi `DOCKER_DEPLOY_CODE_ENABLED=true`.
 
 Tài liệu chính đã được chuẩn hoá theo codebase hiện tại:
 
-- Hướng dẫn triển khai tổng quát: `deploy.md`
-- Hướng dẫn thay thế app/service mới: `deploy.new.md`
+- Hướng dẫn triển khai tổng quát: `docs/DEPLOY.md`
+- Hướng dẫn thay thế app/service mới: `docs/deploy.new.md`
 - Tài liệu chi tiết từng dịch vụ (mỗi dịch vụ 1 file): thư mục `docs/services/`
+- Tài liệu Deploy Code: `docs/services/deploy-code.md`
 - One-file handoff cho coding agent khi thay app: `AGENT_APP_SWAP.md`
 - Sync embedded files into agent handoff: `npm run agent-app-swap:sync`
 
@@ -19,6 +21,7 @@ Tài liệu chính đã được chuẩn hoá theo codebase hiện tại:
 - `docker-compose/compose.core.yml`
 - `docker-compose/compose.ops.yml`
 - `docker-compose/compose.access.yml`
+- `docker-compose/compose.deploy.yml`
 - `compose.apps.yml`
 
 Script điều phối chính:

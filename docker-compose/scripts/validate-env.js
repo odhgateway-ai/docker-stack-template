@@ -26,6 +26,24 @@ function parseEnvFile(filePath) {
 }
 
 const env = parseEnvFile(envPath);
+
+function expandEnvReferences(values) {
+  const pattern = /\$\{([A-Za-z_][A-Za-z0-9_]*)\}/g;
+  for (let pass = 0; pass < 5; pass += 1) {
+    let changed = false;
+    for (const [key, value] of Object.entries(values)) {
+      const next = String(value || "").replace(pattern, (_match, name) => values[name] ?? "");
+      if (next !== value) {
+        values[key] = next;
+        changed = true;
+      }
+    }
+    if (!changed) break;
+  }
+}
+
+expandEnvReferences(env);
+
 const errors = [];
 const warnings = [];
 const ok = [];
@@ -127,9 +145,61 @@ checkPort("WEBSSH_HOST_PORT", false);
 checkOptional("NODE_ENV", "app runtime env");
 checkOptional("HEALTH_PATH", "health endpoint path", (v) => (v.startsWith("/") ? null : "must start with '/'"));
 checkOptional("DOCKER_SOCK", "docker socket path override");
+checkPort("DOCKER_DEPLOY_CODE_PORT", false);
+checkPort("DOCKER_DEPLOY_CODE_HOST_PORT", false);
+checkOptional("DOCKER_DEPLOY_CODE_CADDY_HOSTS", "public Caddy host for deploy-code UI/API");
+checkOptional("DOCKER_DEPLOY_CODE_REPO_DIR", "repo path mounted inside deploy-code sidecar");
+checkOptional("DOCKER_DEPLOY_CODE_BRANCH", "git branch to deploy");
+checkOptional("DOCKER_DEPLOY_CODE_REMOTE", "git remote to fetch");
+checkOptional("DOCKER_DEPLOY_CODE_COMPOSE_SCRIPT", "compose orchestration script inside repo");
+checkOptional("DOCKER_DEPLOY_CODE_DEPLOY_SERVICES", "comma-separated compose services to rebuild/redeploy");
+checkOptional("DOCKER_DEPLOY_CODE_CONTAINER_CONTROL_ENABLED", "true|false toggle for container control API", (v) =>
+  isBool(v) ? null : "must be true|false"
+);
+checkOptional("DOCKER_DEPLOY_CODE_CONTAINER_ALLOW_ALL", "true|false toggle to allow all Docker containers", (v) =>
+  isBool(v) ? null : "must be true|false"
+);
+checkOptional("DOCKER_DEPLOY_CODE_SERVICE_ALLOWLIST", "comma-separated compose services allowed for start/stop/restart/rebuild/logs");
+checkOptional("DOCKER_DEPLOY_CODE_CONTAINER_ALLOWLIST", "comma-separated containers allowed for start/stop/restart/logs/inspect");
+checkOptional("DOCKER_DEPLOY_CODE_CONTAINER_LOG_DEFAULT_LINES", "default container log tail lines", (v) => {
+  const n = Number(v);
+  return Number.isInteger(n) && n > 0 ? null : "must be positive integer";
+});
+checkOptional("DOCKER_DEPLOY_CODE_CONTAINER_LOG_MAX_LINES", "max container log tail lines", (v) => {
+  const n = Number(v);
+  return Number.isInteger(n) && n > 0 ? null : "must be positive integer";
+});
+checkOptional("DOCKER_DEPLOY_CODE_CONTAINER_ACTION_TIMEOUT_SEC", "Docker action timeout seconds", (v) => {
+  const n = Number(v);
+  return Number.isInteger(n) && n >= 30 ? null : "must be integer >= 30";
+});
+checkOptional("DOCKER_DEPLOY_CODE_POLL_INTERVAL_SEC", "git polling interval seconds", (v) => {
+  const n = Number(v);
+  return Number.isInteger(n) && n >= 30 ? null : "must be integer >= 30";
+});
+checkOptional("DOCKER_DEPLOY_CODE_ZIP_MAX_MB", "max raw ZIP upload size in MB", (v) => {
+  const n = Number(v);
+  return Number.isInteger(n) && n > 0 ? null : "must be positive integer";
+});
+
+if (env.DOCKER_DEPLOY_CODE_ENABLED === "true") {
+  checkRequired("DOCKER_DEPLOY_CODE_DEPLOY_SERVICES", "service(s) deploy-code may rebuild/redeploy");
+  checkRequired("DOCKER_DEPLOY_CODE_CADDY_HOSTS", "public deploy-code hostname for Caddy");
+
+  const requireToken = (env.DOCKER_DEPLOY_CODE_REQUIRE_TOKEN || "true").trim();
+  if (!isBool(requireToken)) {
+    errors.push("DOCKER_DEPLOY_CODE_REQUIRE_TOKEN must be true|false");
+  } else if (requireToken === "true") {
+    checkRequired("DOCKER_DEPLOY_CODE_API_TOKEN", "required when deploy-code token auth is enabled", (v) =>
+      v.length >= 16 ? null : "must be at least 16 characters"
+    );
+  } else {
+    warnings.push("DOCKER_DEPLOY_CODE_REQUIRE_TOKEN=false while deploy-code is enabled -> rely on Caddy Basic Auth / private network only");
+  }
+}
 
 // 3) Flags
-for (const key of ["ENABLE_DOZZLE", "ENABLE_FILEBROWSER", "ENABLE_WEBSSH", "ENABLE_TAILSCALE"]) {
+for (const key of ["ENABLE_DOZZLE", "ENABLE_FILEBROWSER", "ENABLE_WEBSSH", "ENABLE_TAILSCALE", "DOCKER_DEPLOY_CODE_ENABLED", "DOCKER_DEPLOY_CODE_POLL_ENABLED", "DOCKER_DEPLOY_CODE_AUTO_DEPLOY_ON_CHANGE", "DOCKER_DEPLOY_CODE_RUN_ON_START", "DOCKER_DEPLOY_CODE_REQUIRE_TOKEN", "DOCKER_DEPLOY_CODE_GIT_CLEAN", "DOCKER_DEPLOY_CODE_ZIP_STRIP_TOP_LEVEL", "DOCKER_DEPLOY_CODE_ZIP_DELETE_MISSING", "DOCKER_DEPLOY_CODE_ZIP_BACKUP_BEFORE_APPLY", "DOCKER_DEPLOY_CODE_ZIP_DEPLOY_AFTER_APPLY"]) {
   const v = env[key];
   if (!v) {
     warnings.push(`${key} not set -> using default from scripts/compose`);
@@ -212,14 +282,19 @@ ok.push(`subdomain preview: app=${appHost}`);
 if ((env.ENABLE_DOZZLE || "true") === "true") ok.push(`subdomain preview: logs=logs.${appHost}`);
 if ((env.ENABLE_FILEBROWSER || "true") === "true") ok.push(`subdomain preview: files=files.${appHost}`);
 if ((env.ENABLE_WEBSSH || "true") === "true") ok.push(`subdomain preview: ttyd=ttyd.${appHost}`);
+if (env.DOCKER_DEPLOY_CODE_ENABLED === "true") {
+  ok.push(`subdomain preview: deploy-code=${env.DOCKER_DEPLOY_CODE_CADDY_HOSTS || `deploy.${domain}`}`);
+}
 if (env.ENABLE_TAILSCALE === "true") {
   const dozzlePort = env.DOZZLE_HOST_PORT || "18080";
   const filesPort = env.FILEBROWSER_HOST_PORT || "18081";
   const sshPort = env.WEBSSH_HOST_PORT || "17681";
+  const deployCodePort = env.DOCKER_DEPLOY_CODE_HOST_PORT || "15399";
   ok.push(`tailnet host: https://${host}.${tailnet}`);
   if ((env.ENABLE_DOZZLE || "true") === "true") ok.push(`tailnet dozzle: http://${host}.${tailnet}:${dozzlePort}`);
   if ((env.ENABLE_FILEBROWSER || "true") === "true") ok.push(`tailnet filebrowser: http://${host}.${tailnet}:${filesPort}`);
   if ((env.ENABLE_WEBSSH || "true") === "true") ok.push(`tailnet webssh: http://${host}.${tailnet}:${sshPort}`);
+  if (env.DOCKER_DEPLOY_CODE_ENABLED === "true") ok.push(`tailnet deploy-code: http://${host}.${tailnet}:${deployCodePort}`);
 }
 
 console.log("\n📋 ENV VALIDATION REPORT");
