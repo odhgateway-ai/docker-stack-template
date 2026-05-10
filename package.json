@@ -65,7 +65,7 @@
     "stack:rtdbmanager": "node scripts/clone-stack.js --output H:/nodejs-tester/rtdbmanager --name rtdbmanager --force",
     "stack:rclonemanager-deploy": "node scripts/clone-stack.js --output H:/nodejs-tester/rclonemanager-deploy --name rclonemanager --force",
     "stack:rclonemanager-collabmd": "node scripts/clone-stack.js --output H:/nodejs-tester/rclonemanager-collabmd --name rclonemanagercollabmd --force",
-    "stack:ds2api": "node scripts/clone-stack.js --output H:/nodejs-tester/ds2api --name ds2api --force",
+    "stack:dockerstackds2api": "node scripts/clone-stack.js --output H:/nodejs-tester/dockerstackds2api --name dockerstackds2api --force",
     "env-cloudflared-create": "dotenvrtdb -e .env -- ocli cloudflared",
     "tailscale-init": "node tailscale/tailscale-init.js .env",
     "ocli-gh": "dotenvrtdb -e .env -- ocli gh",
