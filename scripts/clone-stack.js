@@ -207,17 +207,53 @@ function copyEnvSanitized(src, dest, blankVars) {
   return { blanked: [...new Set(blanked)] };
 }
 
-// ─── Workflow name updater ───────────────────────────────────────────────────
+// ─── Clone metadata updater ──────────────────────────────────────────────────
 
-function updateYamlName(filePath, name) {
-  if (!name || !fs.existsSync(filePath)) return false;
+const RENAME_TEXT_EXTENSIONS = new Set([".json", ".md", ".yml", ".yaml"]);
+const TEMPLATE_NAMES = ["docker-stack-template", "dockerstack-s3proxy"];
+
+function escapeRegex(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function replaceAllLiteral(content, from, to) {
+  return content.replace(new RegExp(escapeRegex(from), "g"), to);
+}
+
+function updateCloneMetadata(filePath, serviceName) {
+  if (!serviceName || !fs.existsSync(filePath)) return false;
+
+  const ext = path.extname(filePath).toLowerCase();
+  if (!RENAME_TEXT_EXTENSIONS.has(ext)) return false;
 
   const content = fs.readFileSync(filePath, "utf8");
-  const updated = content.replace(/^(name:\s*).+$/m, `$1${name}`);
+  let updated = content;
+  for (const templateName of TEMPLATE_NAMES) {
+    updated = replaceAllLiteral(updated, templateName, serviceName);
+  }
+
   if (updated === content) return false;
 
   fs.writeFileSync(filePath, updated, "utf8");
   return true;
+}
+
+function updateCloneMetadataRecursive(dir, serviceName, changed = []) {
+  if (!serviceName || !fs.existsSync(dir)) return changed;
+
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const fullPath = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      updateCloneMetadataRecursive(fullPath, serviceName, changed);
+      continue;
+    }
+
+    if (entry.isFile() && updateCloneMetadata(fullPath, serviceName)) {
+      changed.push(fullPath);
+    }
+  }
+
+  return changed;
 }
 
 // ─── Recursive copy ──────────────────────────────────────────────────────────
@@ -327,17 +363,11 @@ async function main() {
   // ── Thực hiện copy ───────────────────────────────────────────────────────
   copyRecursive(sourceRepo, targetDir, "", ignoreConfig, envBlankVars);
 
-  // ── Cập nhật tên workflow/pipeline theo serviceName ──────────────────────
+  // ── Cập nhật metadata/tài liệu theo serviceName ──────────────────────────
   if (serviceName) {
-    const yamlNameTargets = [
-      path.join(targetDir, ".azure", "azure-pipelines.yml"),
-      path.join(targetDir, ".github", "workflows", "deploy.yml"),
-    ];
-
-    for (const filePath of yamlNameTargets) {
-      if (updateYamlName(filePath, serviceName)) {
-        console.log(`   📝 Updated YAML name: ${path.relative(targetDir, filePath)}`);
-      }
+    const changedMetadataFiles = updateCloneMetadataRecursive(targetDir, serviceName);
+    for (const filePath of changedMetadataFiles) {
+      console.log(`   📝 Updated clone metadata: ${path.relative(targetDir, filePath)}`);
     }
   }
 
