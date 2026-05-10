@@ -207,6 +207,19 @@ function copyEnvSanitized(src, dest, blankVars) {
   return { blanked: [...new Set(blanked)] };
 }
 
+// ─── Workflow name updater ───────────────────────────────────────────────────
+
+function updateYamlName(filePath, name) {
+  if (!name || !fs.existsSync(filePath)) return false;
+
+  const content = fs.readFileSync(filePath, "utf8");
+  const updated = content.replace(/^(name:\s*).+$/m, `$1${name}`);
+  if (updated === content) return false;
+
+  fs.writeFileSync(filePath, updated, "utf8");
+  return true;
+}
+
 // ─── Recursive copy ──────────────────────────────────────────────────────────
 
 function copyRecursive(src, dest, relPath, ignoreConfig, envBlankVars) {
@@ -313,6 +326,20 @@ async function main() {
 
   // ── Thực hiện copy ───────────────────────────────────────────────────────
   copyRecursive(sourceRepo, targetDir, "", ignoreConfig, envBlankVars);
+
+  // ── Cập nhật tên workflow/pipeline theo serviceName ──────────────────────
+  if (serviceName) {
+    const yamlNameTargets = [
+      path.join(targetDir, ".azure", "azure-pipelines.yml"),
+      path.join(targetDir, ".github", "workflows", "deploy.yml"),
+    ];
+
+    for (const filePath of yamlNameTargets) {
+      if (updateYamlName(filePath, serviceName)) {
+        console.log(`   📝 Updated YAML name: ${path.relative(targetDir, filePath)}`);
+      }
+    }
+  }
 
   // ── Ghi stamp vào README ─────────────────────────────────────────────────
   const readmePath = path.join(targetDir, "README.md");
