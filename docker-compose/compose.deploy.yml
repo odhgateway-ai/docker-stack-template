@@ -72,9 +72,13 @@ services:
       - "${OPS_HOST_BIND_IP:-127.0.0.1}:${DOCKER_DEPLOY_CODE_HOST_PORT:-15399}:${DOCKER_DEPLOY_CODE_PORT:-53999}"
     labels:
       - "caddy=http://${DOCKER_DEPLOY_CODE_CADDY_HOSTS:-deploy.localhost}"
-      - "caddy.reverse_proxy={{upstreams ${DOCKER_DEPLOY_CODE_PORT:-53999}}}"
-      - "caddy.basic_auth=/*"
-      - "caddy.basic_auth.${CADDY_AUTH_USER:-admin}=${CADDY_AUTH_HASH}"
+      # Route 0: assets (CSS, JS) — no basic auth
+      - "caddy_0.@assets.path=/assets/*"
+      - "caddy_0.reverse_proxy={{upstreams ${DOCKER_DEPLOY_CODE_PORT:-53999}}}"
+      # Route 1: all other paths — protected by basic auth
+      - "caddy_1.reverse_proxy={{upstreams ${DOCKER_DEPLOY_CODE_PORT:-53999}}}"
+      - "caddy_1.basic_auth=/*"
+      - "caddy_1.basic_auth.${CADDY_AUTH_USER:-admin}=${CADDY_AUTH_HASH}"
     networks: [app_net]
     restart: unless-stopped
     healthcheck:
