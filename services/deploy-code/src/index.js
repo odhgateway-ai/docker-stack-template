@@ -751,6 +751,9 @@ function responseJson(res, status, data) {
   res.writeHead(status, {
     'content-type': 'application/json; charset=utf-8',
     'cache-control': 'no-store',
+    'access-control-allow-origin': '*',
+    'access-control-allow-methods': 'GET, POST, OPTIONS',
+    'access-control-allow-headers': 'content-type, authorization, x-deploy-code-token, x-file-name',
   });
   res.end(text);
 }
@@ -759,6 +762,9 @@ function responseText(res, status, text) {
   res.writeHead(status, {
     'content-type': 'text/plain; charset=utf-8',
     'cache-control': 'no-store',
+    'access-control-allow-origin': '*',
+    'access-control-allow-methods': 'GET, POST, OPTIONS',
+    'access-control-allow-headers': 'content-type, authorization, x-deploy-code-token, x-file-name',
   });
   res.end(text);
 }
@@ -766,7 +772,12 @@ function responseText(res, status, text) {
 function staticRelativePath(urlPath) {
   if (urlPath === '/' || urlPath === '/ui' || urlPath === '/ui/') return 'index.html';
   if (urlPath.startsWith('/ui/')) return urlPath.slice('/ui/'.length);
-  if (urlPath.startsWith('/assets/')) return urlPath.slice(1);
+
+  // Serve common static assets from the root of PUBLIC_DIR
+  const ext = path.extname(urlPath).toLowerCase();
+  if (['.css', '.js', '.png', '.jpg', '.svg', '.ico'].includes(ext)) {
+    return urlPath.slice(1);
+  }
   return '';
 }
 
@@ -977,6 +988,16 @@ async function handle(req, res) {
   const url = new URL(req.url, 'http://localhost');
   const cfg = config();
   const pathname = apiPathname(url.pathname);
+
+  // Handle CORS preflight
+  if (req.method === 'OPTIONS') {
+    res.writeHead(204, {
+      'access-control-allow-origin': '*',
+      'access-control-allow-methods': 'GET, POST, OPTIONS',
+      'access-control-allow-headers': 'content-type, authorization, x-deploy-code-token, x-file-name',
+    });
+    return res.end();
+  }
 
   if (pathname === '/health') {
     return responseJson(res, 200, { status: 'ok', enabled: cfg.enabled, running, startedAt });

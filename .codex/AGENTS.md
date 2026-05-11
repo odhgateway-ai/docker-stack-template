@@ -1,16 +1,16 @@
-# Codex Project Rules (dockerstack-s3proxy)
+# AI Agent Project Rules (dockerstack-s3proxy)
 
-These rules are mandatory for Codex in this project.
+These rules are mandatory for ANY AI Agent (Codex, Claude Code, Antigravity, Cursor, etc.) working in this project.
 
 ## 1) Always update `.opushforce.message`
 
-- For every completed user task, Codex must update `.opushforce.message` before sending the final response.
+- For every completed user task, the AI Agent must update `.opushforce.message` before sending the final response.
 - Do not skip this step, even for small edits.
 - If no files were changed, still update `.opushforce.message` with a short note.
 
 ## 2) Message format
 
-Use conversational summary content (not commit-style), aligned with what Codex says to the user.
+Use conversational summary content (not commit-style), aligned with what the AI Agent says to the user.
 
 Required structure in `.opushforce.message`:
 
@@ -34,4 +34,4 @@ Formatting rules:
 
 ## 3) Completion gate
 
-Codex should treat task as incomplete until `.opushforce.message` is updated to reflect the latest work.
+The AI Agent should treat the task as incomplete until `.opushforce.message` is updated to reflect the latest work.

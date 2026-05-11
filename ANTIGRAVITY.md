@@ -1,4 +1,4 @@
-# AI Agent Project Rules (dockerstack-s3proxy)
+# AI Agent Project Rules (docker-stack-template)
 
 These rules are mandatory for ANY AI Agent (Codex, Claude Code, Antigravity, Cursor, etc.) working in this project.
 
