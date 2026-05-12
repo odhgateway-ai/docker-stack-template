@@ -56,7 +56,8 @@ services:
 Thu muc goi y nen tao san:
 
 ```bash
-mkdir -p .docker-volumes/app/logs
+mkdir -p .docker-volumes/app/logs .docker-volumes/app/data
+mkdir -p .docker-volumes/tinyauth
 mkdir -p .docker-volumes/caddy/data .docker-volumes/caddy/config
 mkdir -p .docker-volumes/filebrowser/database
 mkdir -p .docker-volumes/tailscale/var-lib
@@ -75,6 +76,8 @@ PowerShell:
 ```powershell
 New-Item -ItemType Directory -Force `
   .docker-volumes/app/logs, `
+  .docker-volumes/app/data, `
+  .docker-volumes/tinyauth, `
   .docker-volumes/caddy/data, `
   .docker-volumes/caddy/config, `
   .docker-volumes/filebrowser/database, `
@@ -88,9 +91,9 @@ Toi thieu:
 - `PROJECT_NAME`
 - `DOMAIN`
 - `CADDY_EMAIL`
-- `CADDY_AUTH_USER`
-- `CADDY_AUTH_HASH`
+- `TINYAUTH_APP_URL`, `TINYAUTH_PORT`, `TINYAUTH_SECRET`, `TINYAUTH_DB_FILE`, `TINYAUTH_USERS`
 - `APP_PORT`
+- `LITESTREAM_*` nếu `ENABLE_LITESTREAM=true`
 
 Tuy chon:
 
@@ -129,7 +132,7 @@ npm run dockerapp-exec:logs
 
 ### Lop public
 - Host `${PROJECT_NAME}.${DOMAIN}` truy cap OK.
-- Basic auth hoat dong.
+- Tinyauth forward_auth hoat dong.
 
 ### Lop ops (neu bat)
 - `logs.*`, `files.*`, `ttyd.*` truy cap duoc.
@@ -147,8 +150,9 @@ npm run dockerapp-exec:logs
 
 ## Tong ket diem can doi khi thay dich vu
 
-1. `compose.apps.yml` (image/build/port/health).
-2. Tat ca compose file co data volume: map vao `${DOCKER_VOLUMES_ROOT:-./.docker-volumes}/...`.
-3. `.env` (identity + domain + auth + port + flags).
+1. `compose.apps.yml` (image/build/port/health) cho app layer.
+2. `docker-compose/compose.auth.yml` cho Tinyauth/Litestream auth + backup layer.
+3. Tat ca compose file co data volume: map vao `${DOCKER_VOLUMES_ROOT:-./.docker-volumes}/...`.
+4. `.env` (identity + domain + Tinyauth + Litestream + port + flags).
 4. `cloudflared/config.yml` (ingress hostnames).
 5. Tuy chon: script CI/CD de reflect ten stack moi.

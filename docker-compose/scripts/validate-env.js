@@ -130,11 +130,18 @@ checkRequired("PROJECT_NAME", "docker project/network + subdomain prefix", (v) =
 );
 checkRequired("DOMAIN", "root domain", isValidDomain);
 checkRequired("CADDY_EMAIL", "caddy email label", (v) => (v.includes("@") ? null : "invalid email"));
-checkRequired("CADDY_AUTH_USER", "basic auth username");
-checkRequired("CADDY_AUTH_HASH", "basic auth bcrypt hash", (v) => {
-  const raw = v.replace(/\$\$/g, "$");
-  return raw.startsWith("$2a$") || raw.startsWith("$2b$") ? null : "must be bcrypt hash ($2a$/$2b$...)";
-});
+checkRequired("TINYAUTH_APP_URL", "public Tinyauth URL", (v) =>
+  v.startsWith("http://") || v.startsWith("https://") ? null : "must start with http:// or https://"
+);
+checkPort("TINYAUTH_PORT", true);
+checkRequired("TINYAUTH_SECRET", "session/cookie signing secret", (v) =>
+  v.length >= 24 ? null : "must be at least 24 characters"
+);
+if ((env.TINYAUTH_SECRET || "").includes("change-me")) {
+  warnings.push("TINYAUTH_SECRET uses example default -> replace before public deploy");
+}
+checkRequired("TINYAUTH_DB_FILE", "Tinyauth SQLite file");
+checkRequired("TINYAUTH_USERS", "at least one static user or deployment default");
 checkPort("APP_PORT", true);
 
 // 2) Optional env from compose files
@@ -194,12 +201,12 @@ if (env.DOCKER_DEPLOY_CODE_ENABLED === "true") {
       v.length >= 16 ? null : "must be at least 16 characters"
     );
   } else {
-    warnings.push("DOCKER_DEPLOY_CODE_REQUIRE_TOKEN=false while deploy-code is enabled -> rely on Caddy Basic Auth / private network only");
+    warnings.push("DOCKER_DEPLOY_CODE_REQUIRE_TOKEN=false while deploy-code is enabled -> rely on Tinyauth / private network only");
   }
 }
 
 // 3) Flags
-for (const key of ["ENABLE_DOZZLE", "ENABLE_FILEBROWSER", "ENABLE_WEBSSH", "ENABLE_TAILSCALE", "DOCKER_DEPLOY_CODE_ENABLED", "DOCKER_DEPLOY_CODE_POLL_ENABLED", "DOCKER_DEPLOY_CODE_AUTO_DEPLOY_ON_CHANGE", "DOCKER_DEPLOY_CODE_RUN_ON_START", "DOCKER_DEPLOY_CODE_REQUIRE_TOKEN", "DOCKER_DEPLOY_CODE_GIT_CLEAN", "DOCKER_DEPLOY_CODE_ZIP_STRIP_TOP_LEVEL", "DOCKER_DEPLOY_CODE_ZIP_DELETE_MISSING", "DOCKER_DEPLOY_CODE_ZIP_BACKUP_BEFORE_APPLY", "DOCKER_DEPLOY_CODE_ZIP_DEPLOY_AFTER_APPLY"]) {
+for (const key of ["ENABLE_DOZZLE", "ENABLE_FILEBROWSER", "ENABLE_WEBSSH", "ENABLE_TAILSCALE", "ENABLE_LITESTREAM", "DOCKER_DEPLOY_CODE_ENABLED", "DOCKER_DEPLOY_CODE_POLL_ENABLED", "DOCKER_DEPLOY_CODE_AUTO_DEPLOY_ON_CHANGE", "DOCKER_DEPLOY_CODE_RUN_ON_START", "DOCKER_DEPLOY_CODE_REQUIRE_TOKEN", "DOCKER_DEPLOY_CODE_GIT_CLEAN", "DOCKER_DEPLOY_CODE_ZIP_STRIP_TOP_LEVEL", "DOCKER_DEPLOY_CODE_ZIP_DELETE_MISSING", "DOCKER_DEPLOY_CODE_ZIP_BACKUP_BEFORE_APPLY", "DOCKER_DEPLOY_CODE_ZIP_DEPLOY_AFTER_APPLY"]) {
   const v = env[key];
   if (!v) {
     warnings.push(`${key} not set -> using default from scripts/compose`);
@@ -207,6 +214,25 @@ for (const key of ["ENABLE_DOZZLE", "ENABLE_FILEBROWSER", "ENABLE_WEBSSH", "ENAB
   }
   if (!isBool(v)) errors.push(`${key} must be true|false`);
   else ok.push(`${key}=${v}`);
+}
+
+if ((env.ENABLE_LITESTREAM || "true") === "true") {
+  const initMode = (env.LITESTREAM_INIT_MODE || "").trim();
+  if (!isBool(initMode)) errors.push("LITESTREAM_INIT_MODE must be true|false");
+  checkRequired("LITESTREAM_REPLICATE_DBS", "comma-separated SQLite DB ids, e.g. tinyauth or tinyauth,app");
+  checkRequired("LITESTREAM_S3_ENDPOINT", "S3-compatible endpoint", (v) =>
+    v.startsWith("http://") || v.startsWith("https://") ? null : "must start with http:// or https://"
+  );
+  checkRequired("LITESTREAM_S3_BUCKET", "S3 bucket");
+  checkRequired("LITESTREAM_S3_ACCESS_KEY_ID", "S3 access key id");
+  checkRequired("LITESTREAM_S3_SECRET_ACCESS_KEY", "S3 secret access key");
+  checkRequired("LITESTREAM_TINYAUTH_S3_PATH", "Tinyauth replica path");
+  checkOptional("LITESTREAM_APP_DB_FILE", "optional app SQLite filename");
+  checkOptional("LITESTREAM_APP_S3_PATH", "optional app replica path");
+  checkRequired("LITESTREAM_SYNC_INTERVAL", "Litestream sync interval");
+  checkRequired("LITESTREAM_SNAPSHOT_INTERVAL", "Litestream snapshot interval");
+  checkRequired("LITESTREAM_RETENTION", "Litestream retention");
+  checkRequired("LITESTREAM_RETENTION_CHECK_INTERVAL", "Litestream retention check interval");
 }
 
 // 4) Files required by cloudflared mounts

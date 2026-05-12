@@ -72,11 +72,10 @@ services:
       - "${OPS_HOST_BIND_IP:-127.0.0.1}:${DOCKER_DEPLOY_CODE_HOST_PORT:-15399}:${DOCKER_DEPLOY_CODE_PORT:-53999}"
     labels:
       - "caddy=http://${DOCKER_DEPLOY_CODE_CADDY_HOSTS:-deploy.localhost}"
+      - "caddy.forward_auth=tinyauth:${TINYAUTH_PORT:-3000}"
+      - "caddy.forward_auth.uri=/api/auth/caddy"
+      - "caddy.forward_auth.copy_headers=Remote-User Remote-Email Remote-Name Remote-Groups"
       - "caddy.reverse_proxy={{upstreams ${DOCKER_DEPLOY_CODE_PORT:-53999}}}"
-      # Protect everything except common assets, API, and OPTIONS (CORS)
-      - "caddy.@protected.expression=\"!(path('*.css', '*.js', '/api/*', '/favicon.ico') || method('OPTIONS'))\""
-      - "caddy.basic_auth=@protected"
-      - "caddy.basic_auth.${CADDY_AUTH_USER:-admin}=${CADDY_AUTH_HASH}"
     networks: [app_net]
     restart: unless-stopped
     healthcheck:

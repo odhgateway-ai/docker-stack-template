@@ -82,6 +82,8 @@ prepare_docker_volume_dirs() {
 
   mkdir -p \
     "$volume_root/app/logs" \
+    "$volume_root/app/data" \
+    "$volume_root/tinyauth" \
     "$volume_root/caddy/data" \
     "$volume_root/caddy/config" \
     "$volume_root/filebrowser/database" \
@@ -209,6 +211,10 @@ if [ "${ENABLE_TAILSCALE:-false}" = "true" ]; then
   fi
 fi
 
+if [ "${ENABLE_LITESTREAM:-true}" = "true" ]; then
+  PROFILE_ARGS+=(--profile litestream)
+fi
+
 if [ "${DOCKER_DEPLOY_CODE_ENABLED:-false}" = "true" ]; then
   PROFILE_ARGS+=(--profile deploy-code)
 fi
@@ -222,6 +228,7 @@ prepare_docker_volume_dirs
 # ── Compose file list ──────────────────────────────────────────
 FILES=(
   -f "$ROOT_DIR/docker-compose/compose.core.yml"
+  -f "$ROOT_DIR/docker-compose/compose.auth.yml"
   -f "$ROOT_DIR/docker-compose/compose.ops.yml"
   -f "$ROOT_DIR/docker-compose/compose.access.yml"
   -f "$ROOT_DIR/docker-compose/compose.deploy.yml"

@@ -23,4 +23,12 @@
 
 ## Lưu ý
 - Public traffic hiện đi qua Cloudflare Tunnel nên upstream từ cloudflared vào Caddy bằng HTTP nội bộ.
-- Basic auth cho từng virtual host được khai báo ở labels của từng service (`CADDY_AUTH_USER`, `CADDY_AUTH_HASH`).
+- `caddy.auto_https=disable_redirects` giữ nguyên để tránh redirect HTTP↔HTTPS sai khi đi qua Cloudflared/Tailscale.
+- Auth cho route service dùng `forward_auth` tới Tinyauth, không dùng Caddy Basic Auth.
+
+## Auth labels chuẩn
+```yaml
+- "caddy.forward_auth=tinyauth:${TINYAUTH_PORT:-3000}"
+- "caddy.forward_auth.uri=/api/auth/caddy"
+- "caddy.forward_auth.copy_headers=Remote-User Remote-Email Remote-Name Remote-Groups"
+```

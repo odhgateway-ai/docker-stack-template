@@ -3,8 +3,7 @@
 #  Always included: reverse proxy (Caddy) + tunnel (Cloudflare)
 #
 #  Required env:
-#    PROJECT_NAME, DOMAIN, CADDY_EMAIL, CADDY_AUTH_USER,
-#    CADDY_AUTH_HASH, CF_TUNNEL_TOKEN (or credentials file)
+#    PROJECT_NAME, DOMAIN, CADDY_EMAIL, CF_TUNNEL_TOKEN (or credentials file)
 # ================================================================
 
 networks:

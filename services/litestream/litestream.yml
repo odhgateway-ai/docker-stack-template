@@ -1,0 +1,30 @@
+# ================================================================
+#  /etc/litestream.yml — Multi-DB SQLite replication
+# ================================================================
+
+dbs:
+  - path: /data/tinyauth/${TINYAUTH_DB_FILE}
+    replicas:
+      - type: s3
+        endpoint: ${LITESTREAM_S3_ENDPOINT}
+        bucket: ${LITESTREAM_S3_BUCKET}
+        path: ${LITESTREAM_TINYAUTH_S3_PATH}
+        access-key-id: ${LITESTREAM_S3_ACCESS_KEY_ID}
+        secret-access-key: ${LITESTREAM_S3_SECRET_ACCESS_KEY}
+        sync-interval: ${LITESTREAM_SYNC_INTERVAL}
+        snapshot-interval: ${LITESTREAM_SNAPSHOT_INTERVAL}
+        retention: ${LITESTREAM_RETENTION}
+        retention-check-interval: ${LITESTREAM_RETENTION_CHECK_INTERVAL}
+
+  - path: /data/app/${LITESTREAM_APP_DB_FILE}
+    replicas:
+      - type: s3
+        endpoint: ${LITESTREAM_S3_ENDPOINT}
+        bucket: ${LITESTREAM_S3_BUCKET}
+        path: ${LITESTREAM_APP_S3_PATH}
+        access-key-id: ${LITESTREAM_S3_ACCESS_KEY_ID}
+        secret-access-key: ${LITESTREAM_S3_SECRET_ACCESS_KEY}
+        sync-interval: ${LITESTREAM_SYNC_INTERVAL}
+        snapshot-interval: ${LITESTREAM_SNAPSHOT_INTERVAL}
+        retention: ${LITESTREAM_RETENTION}
+        retention-check-interval: ${LITESTREAM_RETENTION_CHECK_INTERVAL}

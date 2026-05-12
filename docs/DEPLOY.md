@@ -17,6 +17,11 @@ Tài liệu triển khai chuẩn theo **codebase hiện tại**.
 - Chứa `caddy` + `cloudflared`.
 - Luôn được nạp.
 
+### Auth
+- `docker-compose/compose.auth.yml`
+- `tinyauth`, `litestream-restore`, `litestream`.
+- Tinyauth luôn cung cấp auth endpoint; Litestream bật/tắt qua `ENABLE_LITESTREAM`.
+
 ### Ops
 - `docker-compose/compose.ops.yml`
 - `dozzle`, `filebrowser`, `webssh`, `webssh-windows`.
@@ -43,8 +48,11 @@ Các biến dưới đây nếu thiếu/sai sẽ **dừng deploy** ở bước v
 - `PROJECT_NAME`
 - `DOMAIN`
 - `CADDY_EMAIL`
-- `CADDY_AUTH_USER`
-- `CADDY_AUTH_HASH` (bcrypt)
+- `TINYAUTH_APP_URL`
+- `TINYAUTH_PORT`
+- `TINYAUTH_SECRET`
+- `TINYAUTH_DB_FILE`
+- `TINYAUTH_USERS`
 - `APP_PORT`
 
 Thêm nữa, do mount bắt buộc trong `cloudflared`:
@@ -65,6 +73,20 @@ Nếu `TAILSCALE_KEEP_IP_REMOVE_HOSTNAME_ENABLE=true`, bắt buộc thêm:
 
 - `TAILSCALE_CLIENTID`
 - `TAILSCALE_AUTHKEY` theo format `tskey-client-...`
+
+Nếu `ENABLE_LITESTREAM=true`, bắt buộc thêm:
+
+- `LITESTREAM_INIT_MODE`
+- `LITESTREAM_REPLICATE_DBS`
+- `LITESTREAM_S3_ENDPOINT`
+- `LITESTREAM_S3_BUCKET`
+- `LITESTREAM_S3_ACCESS_KEY_ID`
+- `LITESTREAM_S3_SECRET_ACCESS_KEY`
+- `LITESTREAM_TINYAUTH_S3_PATH`
+- `LITESTREAM_SYNC_INTERVAL`
+- `LITESTREAM_SNAPSHOT_INTERVAL`
+- `LITESTREAM_RETENTION`
+- `LITESTREAM_RETENTION_CHECK_INTERVAL`
 
 ## 4) Các env optional nhưng nên cấu hình
 

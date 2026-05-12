@@ -11,10 +11,16 @@ const TRACKED_FILES = [
   ".env.example",
   "compose.apps.yml",
   "docker-compose/compose.core.yml",
+  "docker-compose/compose.auth.yml",
   "docker-compose/compose.ops.yml",
   "docker-compose/compose.access.yml",
   "docker-compose/scripts/dc.sh",
   "docker-compose/scripts/validate-env.js",
+  "docker-compose/scripts/validate-compose.js",
+  "services/litestream/litestream.yml",
+  "services/litestream/entrypoint.sh",
+  "docs/services/tinyauth.md",
+  "docs/services/litestream.md",
 ];
 
 const TREE_MAX_DEPTH = 3;

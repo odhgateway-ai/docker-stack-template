@@ -12,6 +12,7 @@ const path = require('path');
 
 const FILES = [
   'docker-compose/compose.core.yml',
+  'docker-compose/compose.auth.yml',
   'docker-compose/compose.ops.yml',
   'docker-compose/compose.access.yml',
   'docker-compose/compose.deploy.yml',
@@ -43,6 +44,7 @@ function profileArgsFromEnv(env) {
   if (env.ENABLE_FILEBROWSER !== 'false') profiles.push('filebrowser');
   if (env.ENABLE_WEBSSH !== 'false') profiles.push(isWindows ? 'webssh-windows' : 'webssh-linux');
   if (env.ENABLE_TAILSCALE === 'true') profiles.push(isWindows ? 'tailscale-windows' : 'tailscale-linux');
+  if (env.ENABLE_LITESTREAM !== 'false') profiles.push('litestream');
   if (env.DOCKER_DEPLOY_CODE_ENABLED === 'true') profiles.push('deploy-code');
 
   return profiles.flatMap((profile) => ['--profile', profile]);

@@ -39,8 +39,9 @@ services:
       # Lỗi aborting with incomplete response với SSE (text/event-stream) qua Caddy reverse proxy
       #   — cần thêm flush_interval -1 để Caddy không buffer response mà stream thẳng về client.
       - "caddy.reverse_proxy.flush_interval=-1" # ← thêm dòng này
-      - "caddy.basic_auth=/*"
-      - "caddy.basic_auth.${CADDY_AUTH_USER:-admin}=${CADDY_AUTH_HASH}"
+      - "caddy.forward_auth=tinyauth:${TINYAUTH_PORT:-3000}"
+      - "caddy.forward_auth.uri=/api/auth/caddy"
+      - "caddy.forward_auth.copy_headers=Remote-User Remote-Email Remote-Name Remote-Groups"
     networks: [app_net]
     restart: unless-stopped
 
@@ -60,8 +61,9 @@ services:
     labels:
       - "caddy=http://files.${PROJECT_NAME}.${DOMAIN}, http://files.${DOMAIN}"
       - "caddy.reverse_proxy={{upstreams 80}}"
-      - "caddy.basic_auth=/*"
-      - "caddy.basic_auth.${CADDY_AUTH_USER:-admin}=${CADDY_AUTH_HASH}"
+      - "caddy.forward_auth=tinyauth:${TINYAUTH_PORT:-3000}"
+      - "caddy.forward_auth.uri=/api/auth/caddy"
+      - "caddy.forward_auth.copy_headers=Remote-User Remote-Email Remote-Name Remote-Groups"
     networks: [app_net]
     restart: unless-stopped
 
@@ -94,8 +96,9 @@ services:
     labels:
       - "caddy=http://ttyd.${PROJECT_NAME}.${DOMAIN}, http://ttyd.${DOMAIN}"
       - "caddy.reverse_proxy={{upstreams 7681}}"
-      - "caddy.basic_auth=/*"
-      - "caddy.basic_auth.${CADDY_AUTH_USER:-admin}=${CADDY_AUTH_HASH}"
+      - "caddy.forward_auth=tinyauth:${TINYAUTH_PORT:-3000}"
+      - "caddy.forward_auth.uri=/api/auth/caddy"
+      - "caddy.forward_auth.copy_headers=Remote-User Remote-Email Remote-Name Remote-Groups"
     networks: [app_net]
     restart: unless-stopped
 
@@ -114,7 +117,8 @@ services:
     labels:
       - "caddy=http://ttyd.${PROJECT_NAME}.${DOMAIN}"
       - "caddy.reverse_proxy={{upstreams 7681}}"
-      - "caddy.basic_auth=/*"
-      - "caddy.basic_auth.${CADDY_AUTH_USER:-admin}=${CADDY_AUTH_HASH}"
+      - "caddy.forward_auth=tinyauth:${TINYAUTH_PORT:-3000}"
+      - "caddy.forward_auth.uri=/api/auth/caddy"
+      - "caddy.forward_auth.copy_headers=Remote-User Remote-Email Remote-Name Remote-Groups"
     networks: [app_net]
     restart: unless-stopped
