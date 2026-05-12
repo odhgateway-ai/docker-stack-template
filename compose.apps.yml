@@ -46,7 +46,7 @@ services:
       litestream-restore:
         condition: service_completed_successfully
       tinyauth:
-        condition: service_started
+        condition: service_healthy
     restart: unless-stopped
     healthcheck:
       test:

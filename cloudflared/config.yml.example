@@ -41,5 +41,10 @@ ingress:
   - hostname: ttyd.example.com
     service: http://caddy:80
 
+  # ── Tinyauth: authentication portal ────────────────────────────
+  # Always required when using Tinyauth forward_auth
+  - hostname: auth.example.com
+    service: http://caddy:80
+
   # ── Catch-all: return 404 for any unlisted hostnames ──────────
   - service: http_status:404
